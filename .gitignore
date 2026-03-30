@@ -1,0 +1,15 @@
+# Compiled binaries
+tukan
+tukan.exe
+*.exe~
+
+# Go build cache
+*.test
+
+# Database files (user data — not committed)
+*.db
+*.db-wal
+*.db-shm
+
+# Local Claude Code settings
+.claude/
