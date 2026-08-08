@@ -1,7 +1,12 @@
-# Tukan — Claude Reference
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 Tukan is a TUI-based Kanban board built in Go using the Charm.land library stack. It is a personal productivity tool designed to be simple but architecturally flexible for future expansion.
+
+## Planning & Roadmap Docs
+Feature roadmap, phased plans, and cross-project decisions (e.g. the Concord plugin integration) are tracked in Obsidian, not this repo: `C:\Users\JMTho\OneDrive\Documents\Obsidian Vault\10 Projects\Tukan\index.md`. This file stays the authoritative architecture/build/gotchas reference; the vault is where multiple agents/sessions coordinate on what's next.
 
 ## Module
 ```
@@ -126,6 +131,15 @@ GOOS=windows GOARCH=amd64 GOCACHE="$LOCALAPPDATA/go-build" go build -ldflags="-s
 
 # Development run
 go run ./cmd/tukan
+```
+
+## Verifying Changes
+
+There is no test suite in this repo. Verify changes with:
+
+```bash
+go vet ./...
+go build ./...
 ```
 
 ## Data Storage

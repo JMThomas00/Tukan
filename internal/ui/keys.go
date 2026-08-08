@@ -16,8 +16,17 @@ type KeyMap struct {
 	DeleteCard key.Binding
 	MoveCard   key.Binding
 
+	// Board actions
+	SwitchBoard   key.Binding
+	LabelPicker   key.Binding
+	Checklist     key.Binding
+	CardEvents    key.Binding
+	Filter        key.Binding
+	ThemeSwitcher key.Binding
+	LaneManager   key.Binding
+
 	// Move-card mode
-	DropCard   key.Binding
+	DropCard key.Binding
 
 	// Form navigation
 	NextField key.Binding
@@ -65,6 +74,34 @@ var DefaultKeyMap = KeyMap{
 	MoveCard: key.NewBinding(
 		key.WithKeys("m"),
 		key.WithHelp("m", "move"),
+	),
+	SwitchBoard: key.NewBinding(
+		key.WithKeys("b"),
+		key.WithHelp("b", "boards"),
+	),
+	LabelPicker: key.NewBinding(
+		key.WithKeys("L"),
+		key.WithHelp("L", "labels"),
+	),
+	Checklist: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "checklist"),
+	),
+	CardEvents: key.NewBinding(
+		key.WithKeys("v"),
+		key.WithHelp("v", "history"),
+	),
+	Filter: key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "search"),
+	),
+	ThemeSwitcher: key.NewBinding(
+		key.WithKeys("T"),
+		key.WithHelp("T", "theme"),
+	),
+	LaneManager: key.NewBinding(
+		key.WithKeys("S"),
+		key.WithHelp("S", "lanes"),
 	),
 	DropCard: key.NewBinding(
 		key.WithKeys("enter"),

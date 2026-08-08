@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"time"
 )
@@ -27,10 +26,5 @@ func (c Config) DBDir() string {
 }
 
 func defaultDBPath() string {
-	// Use %APPDATA% on Windows, ~/.config elsewhere.
-	base, err := os.UserConfigDir()
-	if err != nil {
-		base = "."
-	}
-	return filepath.Join(base, "tukan", "tukan.db")
+	return filepath.Join(tukanDir(), "tukan.db")
 }

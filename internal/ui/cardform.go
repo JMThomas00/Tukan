@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -13,6 +14,9 @@ import (
 	"github.com/JMThomas00/tukan/internal/styles"
 )
 
+// dueDateLayout is the accepted/displayed format for the due-date field.
+const dueDateLayout = "2006-01-02"
+
 type formMode int
 
 const (
@@ -20,66 +24,104 @@ const (
 	formEdit
 )
 
+// Section indices for CardFormModel.section. sectionTitle..sectionNote are
+// the left column's plain textinput/textarea fields; sectionAssignees..
+// sectionChecklist are the right column's embedded pickers — grouping them
+// this way (rather than interleaving) is what makes tab order match reading
+// order (top-to-bottom, left column then right) once the layout is a real
+// two-column grid instead of one stacked list.
+const (
+	sectionTitle = iota
+	sectionDueDate
+	sectionNote
+	sectionAssignees
+	sectionLabels
+	sectionChecklist
+	sectionCount // number of sections, for the cycle modulus
+)
+
 // cardFormDoneMsg is returned when the form is submitted or cancelled.
+// assigneeIDs/labelIDs are the embedded pickers' final toggled selections
+// at save time — committing them is deferred to the outer save (unlike
+// checklist mutations, which fire immediately as they happen) since both
+// use the same batch-on-close semantics they always have, just scoped to
+// the whole editor's close now instead of each picker's own.
 type cardFormDoneMsg struct {
-	card      models.Card
-	cancelled bool
+	card        models.Card
+	assigneeIDs []int64
+	labelIDs    []int64
+	cancelled   bool
 }
 
-// CardFormModel is the create/edit card modal.
+// CardFormModel is the unified create/edit card screen: title/note/due-date
+// plus embedded assignee, label, and checklist management, replacing what
+// used to be three separate modals (this form, plus LabelPickerModel and
+// ChecklistModel opened standalone from the board view). All three pickers
+// remain real, independently usable, independently tested types —
+// CardFormModel is just another caller of them now, nested one level
+// deeper than BoardModel used to call them directly.
 type CardFormModel struct {
-	mode     formMode
-	card     models.Card
-	laneID   int64
-	fieldIdx int // 0=title, 1=assignee, 2=note
-	title    textinput.Model
-	assignee textinput.Model
-	note     textarea.Model
-	err      string
-	width    int
-	height   int
+	mode      formMode
+	card      models.Card
+	laneID    int64
+	section   int // sectionTitle..sectionChecklist
+	title     textinput.Model
+	note      textarea.Model
+	dueDate   textinput.Model
+	assignees AssigneePickerModel
+	labels    LabelPickerModel
+	checklist ChecklistModel
+	err       string
+	width     int
+	height    int
 }
 
-// NewCardForm creates a blank card form for a given lane.
-func NewCardForm(laneID int64, w, h int) CardFormModel {
-	return buildForm(formCreate, models.Card{LaneID: laneID}, w, h)
+// NewCardForm creates a blank card form for a given lane. allAssignees and
+// boardLabels are the global assignee registry and the board's label
+// palette, so the embedded pickers have something to offer even though a
+// not-yet-created card has none of its own yet.
+func NewCardForm(laneID int64, allAssignees []models.Assignee, boardLabels []models.Label, w, h int) CardFormModel {
+	return buildForm(formCreate, models.Card{LaneID: laneID}, allAssignees, nil, boardLabels, nil, nil, w, h)
 }
 
 // EditCardForm creates a pre-populated card form.
-func EditCardForm(card models.Card, w, h int) CardFormModel {
-	return buildForm(formEdit, card, w, h)
+func EditCardForm(card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
+	return buildForm(formEdit, card, allAssignees, cardAssignees, boardLabels, cardLabels, checklistItems, w, h)
 }
 
-func buildForm(mode formMode, card models.Card, w, h int) CardFormModel {
+func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
 	ti := textinput.New()
 	ti.Placeholder = "Task title"
 	ti.CharLimit = 120
 	ti.SetValue(card.Title)
 	ti.Focus()
 
-	ai := textinput.New()
-	ai.Placeholder = "Assigned to"
-	ai.CharLimit = 60
-	ai.SetValue(card.Assignee)
-
 	ta := textarea.New()
 	ta.Placeholder = "Optional note..."
 	ta.CharLimit = 500
-	ta.SetWidth(40)
-	ta.SetHeight(4)
 	ta.SetValue(card.Note)
 	ta.ShowLineNumbers = false
 
+	di := textinput.New()
+	di.Placeholder = "YYYY-MM-DD (optional)"
+	di.CharLimit = 10
+	if card.DueDate != nil {
+		di.SetValue(card.DueDate.Format(dueDateLayout))
+	}
+
 	return CardFormModel{
-		mode:     mode,
-		card:     card,
-		laneID:   card.LaneID,
-		fieldIdx: 0,
-		title:    ti,
-		assignee: ai,
-		note:     ta,
-		width:    w,
-		height:   h,
+		mode:      mode,
+		card:      card,
+		laneID:    card.LaneID,
+		section:   sectionTitle,
+		title:     ti,
+		note:      ta,
+		dueDate:   di,
+		assignees: NewAssigneePicker(card.ID, allAssignees, cardAssignees, w, h),
+		labels:    NewLabelPicker(card.ID, boardLabels, cardLabels, w, h),
+		checklist: NewChecklist(card.ID, checklistItems, w, h),
+		width:     w,
+		height:    h,
 	}
 }
 
@@ -90,125 +132,221 @@ func (f CardFormModel) Init() tea.Cmd {
 func (f CardFormModel) Update(msg tea.Msg) (CardFormModel, tea.Cmd) {
 	km := DefaultKeyMap
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		// If the focused section has its own open sub-mode (creating a new
+		// label, adding a checklist item), esc belongs to that sub-mode —
+		// it should back out one level there, not close the whole editor.
+		// Forward the key down and let the sub-model's own Cancel handling
+		// take it from there, exactly as it does when used standalone.
+		inSubMode := (f.section == sectionAssignees && f.assignees.mode == assigneePickerCreatingAssignee) ||
+			(f.section == sectionLabels && f.labels.mode == labelPickerCreatingLabel) ||
+			(f.section == sectionChecklist && f.checklist.mode == checklistAddingItem)
+
 		switch {
-		case key.Matches(msg, km.Cancel):
+		case key.Matches(keyMsg, km.Cancel) && !inSubMode:
 			return f, func() tea.Msg {
 				return cardFormDoneMsg{cancelled: true}
 			}
 
-		case key.Matches(msg, km.Submit):
+		case key.Matches(keyMsg, km.Submit):
+			// ctrl+s always saves the whole card now, regardless of which
+			// section has focus — neither embedded sub-model binds it, so
+			// this never shadows a sub-mode's own action.
 			return f.submit()
 
-		case key.Matches(msg, km.NextField):
-			f = f.advanceField(1)
+		case key.Matches(keyMsg, km.NextField):
+			f = f.advanceSection(1)
 			return f, nil
 
-		case key.Matches(msg, km.PrevField):
-			f = f.advanceField(-1)
+		case key.Matches(keyMsg, km.PrevField):
+			f = f.advanceSection(-1)
 			return f, nil
 		}
 	}
 
-	// Route input to the focused field.
+	// Route input to the focused section.
 	var cmd tea.Cmd
-	switch f.fieldIdx {
-	case 0:
+	switch f.section {
+	case sectionTitle:
 		f.title, cmd = f.title.Update(msg)
-	case 1:
-		f.assignee, cmd = f.assignee.Update(msg)
-	case 2:
+	case sectionNote:
 		f.note, cmd = f.note.Update(msg)
+	case sectionDueDate:
+		f.dueDate, cmd = f.dueDate.Update(msg)
+	case sectionAssignees:
+		f.assignees, cmd = f.assignees.Update(msg)
+	case sectionLabels:
+		f.labels, cmd = f.labels.Update(msg)
+	case sectionChecklist:
+		f.checklist, cmd = f.checklist.Update(msg)
 	}
 	return f, cmd
 }
 
 func (f CardFormModel) submit() (CardFormModel, tea.Cmd) {
 	title := strings.TrimSpace(f.title.Value())
-	assignee := strings.TrimSpace(f.assignee.Value())
+	dueRaw := strings.TrimSpace(f.dueDate.Value())
 
 	if title == "" {
 		f.err = "Title is required"
 		return f, nil
 	}
-	if assignee == "" {
-		f.err = "Assignee is required"
-		return f, nil
+
+	var due *time.Time
+	if dueRaw != "" {
+		t, err := time.Parse(dueDateLayout, dueRaw)
+		if err != nil {
+			f.err = "Invalid due date, use YYYY-MM-DD"
+			return f, nil
+		}
+		due = &t
 	}
 
 	f.card.Title = title
-	f.card.Assignee = assignee
 	f.card.Note = strings.TrimSpace(f.note.Value())
+	f.card.DueDate = due
 	if f.card.LaneID == 0 {
 		f.card.LaneID = f.laneID
 	}
 
 	card := f.card
+	assigneeIDs := f.assignees.selectedIDs()
+	labelIDs := f.labels.selectedIDs()
 	return f, func() tea.Msg {
-		return cardFormDoneMsg{card: card}
+		return cardFormDoneMsg{card: card, assigneeIDs: assigneeIDs, labelIDs: labelIDs}
 	}
 }
 
-func (f CardFormModel) advanceField(delta int) CardFormModel {
-	f.fieldIdx = (f.fieldIdx + delta + 3) % 3
+func (f CardFormModel) advanceSection(delta int) CardFormModel {
+	f.section = (f.section + delta + sectionCount) % sectionCount
 	f.title.Blur()
-	f.assignee.Blur()
 	f.note.Blur()
-	switch f.fieldIdx {
-	case 0:
+	f.dueDate.Blur()
+	switch f.section {
+	case sectionTitle:
 		f.title.Focus()
-	case 1:
-		f.assignee.Focus()
-	case 2:
+	case sectionNote:
 		f.note.Focus()
+	case sectionDueDate:
+		f.dueDate.Focus()
 	}
 	return f
 }
 
+// boxWidth/boxHeight size the editor proportionally to the terminal instead
+// of the old fixed Width(50), which left most of a normal terminal unused.
+// Height is enforced as a minimum (Lip Gloss pads, never truncates) so the
+// editor reads as genuinely expanded even for a sparse card with no labels
+// or checklist yet, not just wide.
+func (f CardFormModel) boxWidth() int {
+	w := f.width * 4 / 5
+	if w < 60 {
+		w = 60
+	}
+	if w > 120 {
+		w = 120
+	}
+	return w
+}
+
+func (f CardFormModel) boxHeight() int {
+	h := f.height * 3 / 4
+	if h < 20 {
+		h = 20
+	}
+	if h > 40 {
+		h = 40
+	}
+	return h
+}
+
 func (f CardFormModel) View() string {
-	title := f.mode == formCreate
 	heading := "New Card"
-	if !title {
+	if f.mode == formEdit {
 		heading = "Edit Card"
 	}
 
+	label := func(text string, section int) string {
+		if f.section == section {
+			return styles.SectionActiveStyle.Render(text)
+		}
+		return styles.FormLabelStyle.Render(text)
+	}
+
+	colWidth := (f.boxWidth() - 6) / 2
+	if colWidth < 20 {
+		colWidth = 20
+	}
+
+	// Everything above the note box, in one block so its rendered height can
+	// be measured — that's what lets the note textarea claim exactly
+	// whatever vertical space is left in the column instead of a fixed
+	// height that wastes most of a full-size terminal. The right column is
+	// the three "pick from a registry" sections — assignees, labels,
+	// checklist — grouped together since they share that shape and none of
+	// them are plain single-line fields the way title/due-date are.
+	var top strings.Builder
+	top.WriteString(label("Title", sectionTitle) + "\n")
+	top.WriteString(f.title.View() + "\n\n")
+	top.WriteString(label("Due Date", sectionDueDate) + "\n")
+	top.WriteString(f.dueDate.View() + "\n\n")
+	top.WriteString(label("Note (optional)", sectionNote))
+
+	right := lipgloss.JoinVertical(lipgloss.Left,
+		f.assignees.viewBare(f.section == sectionAssignees), "",
+		f.labels.viewBare(f.section == sectionLabels), "",
+		f.checklist.viewBare(f.section == sectionChecklist))
+
+	footer := styles.HelpDescStyle.Render("tab next section  shift+tab prev  ctrl+s save  esc cancel")
+
+	var errBlock string
+	errLines := 0
+	if f.err != "" {
+		errBlock = styles.FormErrorStyle.Render("⚠ " + f.err)
+		errLines = lipgloss.Height(errBlock) + 1 // +1 for the blank line after it
+	}
+
+	// interior = the box's content budget once ModalBoxStyle's vertical
+	// padding (2 rows) is subtracted. The border does NOT come out of this
+	// budget too, despite being part of the same style — lipgloss applies
+	// Height() to the padded content and only adds the border afterward
+	// (confirmed against lipgloss's own Render()), so boxHeight() itself
+	// already excludes it; double-subtracting it here would just shrink
+	// the body 2 rows short of what's actually available. reserved =
+	// everything in the box besides the two-column body (heading + its
+	// blank line, the optional error block, the blank line before the
+	// footer, and the footer itself) — whatever's left goes to the body,
+	// which is what lets it — and the note textarea inside it — actually
+	// fill the space instead of floating in a box far taller than its content.
+	interior := f.boxHeight() - 2
+	reserved := 2 + errLines + 1 + lipgloss.Height(footer)
+	bodyHeight := interior - reserved
+	if bodyHeight < 5 {
+		bodyHeight = 5
+	}
+
+	noteHeight := bodyHeight - lipgloss.Height(top.String())
+	if noteHeight < 3 {
+		noteHeight = 3
+	}
+	f.note.SetWidth(colWidth - 2)
+	f.note.SetHeight(noteHeight)
+
+	left := top.String() + "\n" + f.note.View()
+
+	leftCol := lipgloss.NewStyle().Width(colWidth).Height(bodyHeight).Render(left)
+	rightCol := lipgloss.NewStyle().Width(colWidth).Height(bodyHeight).Render(right)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, "  ", rightCol)
+
 	var b strings.Builder
 	b.WriteString(styles.FormLabelStyle.Render(heading) + "\n\n")
-
-	// Title field
-	label0 := styles.FormLabelStyle.Render("Title")
-	if f.fieldIdx == 0 {
-		label0 = styles.HelpKeyStyle.Render("Title")
+	b.WriteString(body + "\n\n")
+	if errBlock != "" {
+		b.WriteString(errBlock + "\n\n")
 	}
-	b.WriteString(label0 + "\n")
-	b.WriteString(f.title.View() + "\n\n")
+	b.WriteString(footer)
 
-	// Assignee field
-	label1 := styles.FormLabelStyle.Render("Assignee")
-	if f.fieldIdx == 1 {
-		label1 = styles.HelpKeyStyle.Render("Assignee")
-	}
-	b.WriteString(label1 + "\n")
-	b.WriteString(f.assignee.View() + "\n\n")
-
-	// Note field
-	label2 := styles.FormLabelStyle.Render("Note (optional)")
-	if f.fieldIdx == 2 {
-		label2 = styles.HelpKeyStyle.Render("Note (optional)")
-	}
-	b.WriteString(label2 + "\n")
-	b.WriteString(f.note.View() + "\n\n")
-
-	// Error
-	if f.err != "" {
-		b.WriteString(styles.FormErrorStyle.Render("⚠ "+f.err) + "\n\n")
-	}
-
-	// Hints
-	b.WriteString(styles.HelpDescStyle.Render("tab next  shift+tab prev  ctrl+s save  esc cancel"))
-
-	box := styles.ModalBoxStyle.Width(50).Render(b.String())
+	box := styles.ModalBoxStyle.Width(f.boxWidth()).Height(f.boxHeight()).Render(b.String())
 
 	if f.width > 0 && f.height > 0 {
 		return lipgloss.Place(f.width, f.height, lipgloss.Center, lipgloss.Center, box)

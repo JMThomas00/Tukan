@@ -44,20 +44,11 @@ func (d *DB) applyPragmas() error {
 	return nil
 }
 
-// Migrate creates all tables, triggers, and indexes.
+// Migrate applies any schema migrations newer than the database's current
+// version. Safe to call on every startup, including against an
+// already-up-to-date database (no-op) or a brand-new one (runs everything).
 func (d *DB) Migrate() error {
-	stmts := []string{
-		createLanes,
-		createCards,
-		createCardsTrigger,
-		createCardsIndex,
-	}
-	for _, stmt := range stmts {
-		if _, err := d.sql.Exec(stmt); err != nil {
-			return fmt.Errorf("migrate: %w", err)
-		}
-	}
-	return nil
+	return runMigrations(d.sql)
 }
 
 // Close closes the underlying database connection.
