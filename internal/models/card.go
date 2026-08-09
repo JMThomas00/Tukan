@@ -13,6 +13,7 @@ type Card struct {
 	Title     string
 	Note      string     // optional
 	Position  int        // 0-based vertical order within its lane
+	StartDate *time.Time // optional, date-only (no time-of-day)
 	DueDate   *time.Time // optional, date-only (no time-of-day)
 	TicketNo  int        // permanent, per-board, assigned once at creation — never reused
 	CreatedAt time.Time

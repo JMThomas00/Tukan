@@ -32,6 +32,7 @@ const (
 // two-column grid instead of one stacked list.
 const (
 	sectionTitle = iota
+	sectionStartDate
 	sectionDueDate
 	sectionNote
 	sectionAssignees
@@ -67,6 +68,7 @@ type CardFormModel struct {
 	section   int // sectionTitle..sectionChecklist
 	title     textinput.Model
 	note      textarea.Model
+	startDate textinput.Model
 	dueDate   textinput.Model
 	assignees AssigneePickerModel
 	labels    LabelPickerModel
@@ -102,6 +104,13 @@ func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, 
 	ta.SetValue(card.Note)
 	ta.ShowLineNumbers = false
 
+	si := textinput.New()
+	si.Placeholder = "YYYY-MM-DD (optional)"
+	si.CharLimit = 10
+	if card.StartDate != nil {
+		si.SetValue(card.StartDate.Format(dueDateLayout))
+	}
+
 	di := textinput.New()
 	di.Placeholder = "YYYY-MM-DD (optional)"
 	di.CharLimit = 10
@@ -116,6 +125,7 @@ func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, 
 		section:   sectionTitle,
 		title:     ti,
 		note:      ta,
+		startDate: si,
 		dueDate:   di,
 		assignees: NewAssigneePicker(card.ID, allAssignees, cardAssignees, w, h),
 		labels:    NewLabelPicker(card.ID, boardLabels, cardLabels, w, h),
@@ -171,6 +181,8 @@ func (f CardFormModel) Update(msg tea.Msg) (CardFormModel, tea.Cmd) {
 		f.title, cmd = f.title.Update(msg)
 	case sectionNote:
 		f.note, cmd = f.note.Update(msg)
+	case sectionStartDate:
+		f.startDate, cmd = f.startDate.Update(msg)
 	case sectionDueDate:
 		f.dueDate, cmd = f.dueDate.Update(msg)
 	case sectionAssignees:
@@ -185,11 +197,22 @@ func (f CardFormModel) Update(msg tea.Msg) (CardFormModel, tea.Cmd) {
 
 func (f CardFormModel) submit() (CardFormModel, tea.Cmd) {
 	title := strings.TrimSpace(f.title.Value())
+	startRaw := strings.TrimSpace(f.startDate.Value())
 	dueRaw := strings.TrimSpace(f.dueDate.Value())
 
 	if title == "" {
 		f.err = "Title is required"
 		return f, nil
+	}
+
+	var start *time.Time
+	if startRaw != "" {
+		t, err := time.Parse(dueDateLayout, startRaw)
+		if err != nil {
+			f.err = "Invalid start date, use YYYY-MM-DD"
+			return f, nil
+		}
+		start = &t
 	}
 
 	var due *time.Time
@@ -202,8 +225,14 @@ func (f CardFormModel) submit() (CardFormModel, tea.Cmd) {
 		due = &t
 	}
 
+	if start != nil && due != nil && start.After(*due) {
+		f.err = "Start date must be before the due date"
+		return f, nil
+	}
+
 	f.card.Title = title
 	f.card.Note = strings.TrimSpace(f.note.Value())
+	f.card.StartDate = start
 	f.card.DueDate = due
 	if f.card.LaneID == 0 {
 		f.card.LaneID = f.laneID
@@ -221,12 +250,15 @@ func (f CardFormModel) advanceSection(delta int) CardFormModel {
 	f.section = (f.section + delta + sectionCount) % sectionCount
 	f.title.Blur()
 	f.note.Blur()
+	f.startDate.Blur()
 	f.dueDate.Blur()
 	switch f.section {
 	case sectionTitle:
 		f.title.Focus()
 	case sectionNote:
 		f.note.Focus()
+	case sectionStartDate:
+		f.startDate.Focus()
 	case sectionDueDate:
 		f.dueDate.Focus()
 	}
@@ -288,6 +320,8 @@ func (f CardFormModel) View() string {
 	var top strings.Builder
 	top.WriteString(label("Title", sectionTitle) + "\n")
 	top.WriteString(f.title.View() + "\n\n")
+	top.WriteString(label("Start Date", sectionStartDate) + "\n")
+	top.WriteString(f.startDate.View() + "\n\n")
 	top.WriteString(label("Due Date", sectionDueDate) + "\n")
 	top.WriteString(f.dueDate.View() + "\n\n")
 	top.WriteString(label("Note (optional)", sectionNote))

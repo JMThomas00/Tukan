@@ -24,6 +24,7 @@ type KeyMap struct {
 	Filter        key.Binding
 	ThemeSwitcher key.Binding
 	LaneManager   key.Binding
+	GanttView     key.Binding
 
 	// Move-card mode
 	DropCard key.Binding
@@ -102,6 +103,10 @@ var DefaultKeyMap = KeyMap{
 	LaneManager: key.NewBinding(
 		key.WithKeys("S"),
 		key.WithHelp("S", "lanes"),
+	),
+	GanttView: key.NewBinding(
+		key.WithKeys("g"),
+		key.WithHelp("g", "gantt"),
 	),
 	DropCard: key.NewBinding(
 		key.WithKeys("enter"),

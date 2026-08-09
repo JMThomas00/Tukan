@@ -9,15 +9,16 @@ import (
 	"github.com/JMThomas00/tukan/internal/models"
 )
 
-const cardColumns = `id, lane_id, title, COALESCE(note,''), position, created_at, updated_at, due_date, ticket_no`
+const cardColumns = `id, lane_id, title, COALESCE(note,''), position, created_at, updated_at, due_date, ticket_no, start_date`
 
 // dueDateLayout is the storage format for cards.due_date (date-only, no
 // time-of-day), matching the format used by internal/ui's card form.
 const dueDateLayout = "2006-01-02"
 
-// dueDateParam converts a *time.Time into a driver value: nil clears the
-// column, a formatted string sets it.
-func dueDateParam(t *time.Time) any {
+// dateParam converts a *time.Time into a driver value: nil clears the
+// column, a formatted string sets it. Shared by due_date and start_date —
+// both are date-only (no time-of-day) columns in the same storage format.
+func dateParam(t *time.Time) any {
 	if t == nil {
 		return nil
 	}
@@ -27,9 +28,9 @@ func dueDateParam(t *time.Time) any {
 func scanCard(scan func(...any) error) (models.Card, error) {
 	var c models.Card
 	var createdStr, updatedStr string
-	var dueStr sql.NullString
+	var dueStr, startStr sql.NullString
 	var ticketNo sql.NullInt64
-	err := scan(&c.ID, &c.LaneID, &c.Title, &c.Note, &c.Position, &createdStr, &updatedStr, &dueStr, &ticketNo)
+	err := scan(&c.ID, &c.LaneID, &c.Title, &c.Note, &c.Position, &createdStr, &updatedStr, &dueStr, &ticketNo, &startStr)
 	if err != nil {
 		return c, err
 	}
@@ -41,6 +42,11 @@ func scanCard(scan func(...any) error) (models.Card, error) {
 	if dueStr.Valid {
 		if t, err := time.Parse(dueDateLayout, dueStr.String); err == nil {
 			c.DueDate = &t
+		}
+	}
+	if startStr.Valid {
+		if t, err := time.Parse(dueDateLayout, startStr.String); err == nil {
+			c.StartDate = &t
 		}
 	}
 	return c, nil
@@ -71,7 +77,7 @@ func (d *DB) ListCardsByLane(laneID int64) ([]models.Card, error) {
 // ListCardsByBoard returns every card on a board (joined through its lanes),
 // useful for bulk loading a board's full state at once.
 func (d *DB) ListCardsByBoard(boardID int64) ([]models.Card, error) {
-	cols := `c.id, c.lane_id, c.title, COALESCE(c.note,''), c.position, c.created_at, c.updated_at, c.due_date, c.ticket_no`
+	cols := `c.id, c.lane_id, c.title, COALESCE(c.note,''), c.position, c.created_at, c.updated_at, c.due_date, c.ticket_no, c.start_date`
 	rows, err := d.sql.Query(
 		`SELECT `+cols+` FROM cards c
 		 JOIN lanes l ON l.id = c.lane_id
@@ -129,8 +135,8 @@ func (d *DB) CreateCard(c models.Card) (models.Card, error) {
 	}
 
 	res, err := tx.Exec(
-		`INSERT INTO cards (lane_id, title, note, position, due_date, ticket_no) VALUES (?,?,?,?,?,?)`,
-		c.LaneID, c.Title, c.Note, c.Position, dueDateParam(c.DueDate), c.TicketNo,
+		`INSERT INTO cards (lane_id, title, note, position, due_date, ticket_no, start_date) VALUES (?,?,?,?,?,?,?)`,
+		c.LaneID, c.Title, c.Note, c.Position, dateParam(c.DueDate), c.TicketNo, dateParam(c.StartDate),
 	)
 	if err != nil {
 		return c, fmt.Errorf("create card: %w", err)
@@ -149,9 +155,9 @@ func (d *DB) CreateCard(c models.Card) (models.Card, error) {
 	return c, nil
 }
 
-// UpdateCard updates the mutable fields of a card (title, assignee, note,
-// due date), diffing old against new to log one combined activity entry
-// (e.g. "updated: title, due date") rather than one row per field.
+// UpdateCard updates the mutable fields of a card (title, note, start/due
+// date), diffing old against new to log one combined activity entry (e.g.
+// "updated: title, due date") rather than one row per field.
 func (d *DB) UpdateCard(old, new models.Card) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -160,8 +166,8 @@ func (d *DB) UpdateCard(old, new models.Card) error {
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(
-		`UPDATE cards SET title=?, note=?, due_date=? WHERE id=?`,
-		new.Title, new.Note, dueDateParam(new.DueDate), new.ID,
+		`UPDATE cards SET title=?, note=?, due_date=?, start_date=? WHERE id=?`,
+		new.Title, new.Note, dateParam(new.DueDate), dateParam(new.StartDate), new.ID,
 	); err != nil {
 		return err
 	}
@@ -173,7 +179,10 @@ func (d *DB) UpdateCard(old, new models.Card) error {
 	if old.Note != new.Note {
 		changed = append(changed, "note")
 	}
-	if !dueDatesEqual(old.DueDate, new.DueDate) {
+	if !datesEqual(old.StartDate, new.StartDate) {
+		changed = append(changed, "start date")
+	}
+	if !datesEqual(old.DueDate, new.DueDate) {
 		changed = append(changed, "due date")
 	}
 	if len(changed) > 0 {
@@ -185,7 +194,7 @@ func (d *DB) UpdateCard(old, new models.Card) error {
 	return tx.Commit()
 }
 
-func dueDatesEqual(a, b *time.Time) bool {
+func datesEqual(a, b *time.Time) bool {
 	if a == nil || b == nil {
 		return a == b
 	}

@@ -71,14 +71,18 @@ func newTestBoard(t *testing.T) (*database.DB, BoardModel) {
 // from b.height again, in either direction, this catches it immediately
 // instead of only being visible as "the top looks cut off" in a screenshot.
 //
-// Width is fixed at 130 — wide enough that the normal-mode help bar's key
-// hints (119 runes) don't word-wrap to a second line, which would change
-// the expected height for a completely unrelated reason (a narrow
-// terminal's help bar wrapping is a real but separate concern from
-// boardChrome's row math, and isn't what this test is guarding).
+// Width is fixed at 250 — generously wider than the normal-mode help bar's
+// key hints will need for the foreseeable future, so this doesn't need
+// re-tuning to another exact boundary every time a hint is added (it was
+// previously pinned at exactly 130, which happened to be precisely the
+// width needed at the time — adding one more hint later silently pushed it
+// over and wrapped the help bar to a second line, which would change the
+// expected height for a completely unrelated reason: a narrow terminal's
+// help bar wrapping is a real but separate concern from boardChrome's row
+// math, and isn't what this test is guarding).
 func TestBoardViewRendersExactlyItsOwnHeight(t *testing.T) {
 	_, b := newTestBoard(t)
-	b.width = 130
+	b.width = 250
 
 	for _, h := range []int{24, 40, 10} {
 		b.height = h

@@ -80,6 +80,74 @@ func TestCardDueDateRoundTrip(t *testing.T) {
 	}
 }
 
+// TestCardStartDateRoundTrip mirrors TestCardDueDateRoundTrip for the newer
+// start_date column — same optional, date-only, independently-settable
+// treatment, added specifically to feed the Gantt view's duration bars.
+func TestCardStartDateRoundTrip(t *testing.T) {
+	db := openTestDB(t)
+	lane := newTestLane(t, db)
+
+	start := time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)
+	due := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	created, err := db.CreateCard(models.Card{
+		LaneID:    lane.ID,
+		Title:     "Ship it",
+		StartDate: &start,
+		DueDate:   &due,
+	})
+	if err != nil {
+		t.Fatalf("create card: %v", err)
+	}
+	if created.StartDate == nil || !created.StartDate.Equal(start) {
+		t.Fatalf("created.StartDate = %v, want %v", created.StartDate, start)
+	}
+	if created.DueDate == nil || !created.DueDate.Equal(due) {
+		t.Fatalf("created.DueDate = %v, want %v (start date must not clobber due date)", created.DueDate, due)
+	}
+
+	cards, err := db.ListCardsByLane(lane.ID)
+	if err != nil {
+		t.Fatalf("list cards: %v", err)
+	}
+	if len(cards) != 1 || cards[0].StartDate == nil || !cards[0].StartDate.Equal(start) {
+		t.Fatalf("listed card start date = %v, want %v", cards[0].StartDate, start)
+	}
+
+	// Update to a new start date.
+	old := cards[0]
+	updated := old
+	newStart := time.Date(2026, 8, 12, 0, 0, 0, 0, time.UTC)
+	updated.StartDate = &newStart
+	if err := db.UpdateCard(old, updated); err != nil {
+		t.Fatalf("update card: %v", err)
+	}
+	cards, err = db.ListCardsByLane(lane.ID)
+	if err != nil {
+		t.Fatalf("list cards after update: %v", err)
+	}
+	if cards[0].StartDate == nil || !cards[0].StartDate.Equal(newStart) {
+		t.Fatalf("card start date after update = %v, want %v", cards[0].StartDate, newStart)
+	}
+	if cards[0].DueDate == nil || !cards[0].DueDate.Equal(due) {
+		t.Fatalf("card due date after start-date-only update = %v, want unchanged %v", cards[0].DueDate, due)
+	}
+
+	// Clear the start date.
+	beforeClear := cards[0]
+	cleared := beforeClear
+	cleared.StartDate = nil
+	if err := db.UpdateCard(beforeClear, cleared); err != nil {
+		t.Fatalf("update card (clear start date): %v", err)
+	}
+	cards, err = db.ListCardsByLane(lane.ID)
+	if err != nil {
+		t.Fatalf("list cards after clear: %v", err)
+	}
+	if cards[0].StartDate != nil {
+		t.Fatalf("card start date after clear = %v, want nil", cards[0].StartDate)
+	}
+}
+
 func TestCardWithoutDueDate(t *testing.T) {
 	db := openTestDB(t)
 	lane := newTestLane(t, db)

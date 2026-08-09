@@ -140,6 +140,17 @@ type dbErrMsg struct{ err error }
 
 // -- model -------------------------------------------------------------------
 
+// boardViewMode selects which top-level renderer BoardModel.View() uses —
+// orthogonal to boardMode (which governs what keys mean within whichever
+// view is showing, e.g. modeMoving/modeConfirmDelete apply the same way in
+// either view).
+type boardViewMode int
+
+const (
+	viewKanban boardViewMode = iota
+	viewGantt
+)
+
 // BoardModel is the main Kanban board Bubble Tea model.
 type BoardModel struct {
 	boards              []models.Board
@@ -167,6 +178,10 @@ type BoardModel struct {
 	currentThemeName    string
 	laneManager         LaneManagerModel
 	laneManagerActive   bool
+	viewMode            boardViewMode
+	ganttCursor         int // index into the flattened, lane-grouped Gantt row list
+	ganttScroll         int // first visible Gantt row index
+	ganttDayOffset      int // days the visible timeline window is shifted from its default centering
 	moving              *models.Card
 	laneScroll          []int // first visible card index per lane
 	laneVPOff           int   // index of leftmost visible lane
@@ -738,16 +753,31 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			b.clampCursor()
 		}
 	case key.Matches(msg, km.MoveLeft):
-		b.moveFocusLane(-1)
+		if b.viewMode == viewGantt {
+			b.ganttDayOffset -= 7
+		} else {
+			b.moveFocusLane(-1)
+		}
 	case key.Matches(msg, km.MoveRight):
-		b.moveFocusLane(1)
+		if b.viewMode == viewGantt {
+			b.ganttDayOffset += 7
+		} else {
+			b.moveFocusLane(1)
+		}
 	case key.Matches(msg, km.MoveUp):
-		b.moveFocusCard(-1)
+		if b.viewMode == viewGantt {
+			b.ganttMoveCursor(-1)
+		} else {
+			b.moveFocusCard(-1)
+		}
 	case key.Matches(msg, km.MoveDown):
-		b.moveFocusCard(1)
+		if b.viewMode == viewGantt {
+			b.ganttMoveCursor(1)
+		} else {
+			b.moveFocusCard(1)
+		}
 	case key.Matches(msg, km.NewCard):
-		if len(b.lanes) > 0 {
-			laneID := b.lanes[b.focusLane].ID
+		if laneID := b.newCardLaneID(); laneID != 0 {
 			b.form = NewCardForm(laneID, b.allAssignees, b.boardLabels, b.width, b.height)
 			b.formActive = true
 			return b, b.form.Init()
@@ -764,11 +794,15 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 			b.mode = modeConfirmDelete
 		}
 	case key.Matches(msg, km.MoveCard):
-		card := b.focusedCard()
-		if card != nil {
-			cp := *card
-			b.moving = &cp
-			b.mode = modeMoving
+		// No natural mapping onto Gantt's flat vertical list — disabled
+		// there for now rather than inventing a new lane-reassignment UI.
+		if b.viewMode != viewGantt {
+			card := b.focusedCard()
+			if card != nil {
+				cp := *card
+				b.moving = &cp
+				b.mode = modeMoving
+			}
 		}
 	case key.Matches(msg, km.SwitchBoard):
 		if len(b.boards) > 0 {
@@ -817,6 +851,14 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		b.laneManager = NewLaneManager(b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
 		b.laneManagerActive = true
 		return b, b.laneManager.Init()
+	case key.Matches(msg, km.GanttView):
+		if b.viewMode == viewGantt {
+			b.viewMode = viewKanban
+		} else {
+			b.viewMode = viewGantt
+			b.ganttDayOffset = 0
+			b.ganttClampCursor() // seeds ganttCursor at the first card row
+		}
 	}
 	return b, nil
 }
@@ -851,19 +893,24 @@ func (b BoardModel) View() string {
 
 	header := b.renderBoardHeader()
 
-	laneStrings := make([]string, 0, len(b.lanes))
-	laneWidth := b.laneWidth()
+	var body string
+	if b.viewMode == viewGantt {
+		body = b.renderGanttView()
+	} else {
+		laneStrings := make([]string, 0, len(b.lanes))
+		laneWidth := b.laneWidth()
 
-	for i, lane := range b.lanes {
-		focused := i == b.focusLane
-		laneStrings = append(laneStrings, b.renderLane(i, lane, laneWidth, focused))
+		for i, lane := range b.lanes {
+			focused := i == b.focusLane
+			laneStrings = append(laneStrings, b.renderLane(i, lane, laneWidth, focused))
+		}
+		body = lipgloss.JoinHorizontal(lipgloss.Top, laneStrings...)
 	}
 
-	board := lipgloss.JoinHorizontal(lipgloss.Top, laneStrings...)
-	helpBar := RenderHelp(b.mode, b.width)
+	helpBar := RenderHelp(b.mode, b.viewMode, b.width)
 	statusBar := b.renderStatusBar()
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, board, statusBar, helpBar)
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, statusBar, helpBar)
 }
 
 // SetSize updates the board's dimensions and cascades to whichever overlay
@@ -1327,6 +1374,7 @@ func (b *BoardModel) clampCard() {
 func (b *BoardModel) clampCursor() {
 	b.clampLane()
 	b.clampCard()
+	b.ganttClampCursor()
 }
 
 func (b *BoardModel) clampLane() {
@@ -1346,15 +1394,37 @@ func (b *BoardModel) adjustScroll() {
 	if visibleCount < 1 {
 		visibleCount = 1
 	}
-	scroll := b.laneScroll[b.focusLane]
-	if b.focusCard < scroll {
-		b.laneScroll[b.focusLane] = b.focusCard
-	} else if b.focusCard >= scroll+visibleCount {
-		b.laneScroll[b.focusLane] = b.focusCard - visibleCount + 1
+	clampScrollToCursor(b.focusCard, visibleCount, &b.laneScroll[b.focusLane])
+}
+
+// clampScrollToCursor keeps a scroll offset showing the cursor: scrolls up
+// if the cursor moved above the visible window, down if below it. Shared by
+// kanban's per-lane adjustScroll and Gantt's single-list ganttAdjustScroll —
+// both are the same "keep this index in view within this window size"
+// problem, just against different scroll state.
+func clampScrollToCursor(cursor, visibleCount int, scroll *int) {
+	if cursor < *scroll {
+		*scroll = cursor
+	} else if cursor >= *scroll+visibleCount {
+		*scroll = cursor - visibleCount + 1
 	}
 }
 
+// focusedCard resolves whichever card the cursor is currently on — in
+// kanban that's the (focusLane, focusCard) grid position; in Gantt it's
+// ganttCursor's position in the flattened row list. Every handleKey action
+// (edit, delete, move, label/checklist shortcuts, history) calls this one
+// function regardless of which view is active, so the actual mutation
+// logic never needs to know which view triggered it.
 func (b BoardModel) focusedCard() *models.Card {
+	if b.viewMode == viewGantt {
+		rows := b.ganttRows()
+		if b.ganttCursor < 0 || b.ganttCursor >= len(rows) || rows[b.ganttCursor].kind != ganttRowCard {
+			return nil
+		}
+		c := rows[b.ganttCursor].card
+		return &c
+	}
 	if len(b.lanes) == 0 {
 		return nil
 	}

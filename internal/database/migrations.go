@@ -128,6 +128,18 @@ var migrations = []migration{
 		desc:    "add per-board ticket numbers",
 		run:     migrateTicketNumbers,
 	},
+	{
+		// Enables real Gantt-chart duration bars (start -> due) instead of
+		// single-point due-date markers. Same shape as v2's due_date
+		// addition — a plain nullable column, no backfill, since start
+		// dates are a genuinely new concept with no prior data to carry
+		// forward.
+		version: 9,
+		desc:    "add cards.start_date",
+		stmts: []string{
+			`ALTER TABLE cards ADD COLUMN start_date TEXT`,
+		},
+	},
 }
 
 func migrateTicketNumbers(db *sql.DB) error {

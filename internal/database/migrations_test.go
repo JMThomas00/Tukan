@@ -345,6 +345,13 @@ func TestV8MigrationBackfillsTicketNumbers(t *testing.T) {
 	if err := applyMigration(db.sql, migrations[7]); err != nil { // version 8
 		t.Fatalf("apply v8 migration: %v", err)
 	}
+	// ListCardsByBoard queries the current (v9+) column set, so bring the
+	// schema the rest of the way up even though this test only cares about
+	// ticket-number backfill — v9 (start_date) is an unrelated additive
+	// column with nothing to assert about here.
+	if err := applyMigration(db.sql, migrations[8]); err != nil { // version 9
+		t.Fatalf("apply v9 migration: %v", err)
+	}
 
 	cards, err := db.ListCardsByBoard(1)
 	if err != nil {

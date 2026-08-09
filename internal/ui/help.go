@@ -9,14 +9,17 @@ import (
 type boardMode int
 
 const (
-	modeNormal        boardMode = iota
+	modeNormal boardMode = iota
 	modeMoving
 	modeConfirmDelete
 	modeFilterEdit
 )
 
-// RenderHelp returns a context-sensitive one-line help string.
-func RenderHelp(mode boardMode, width int) string {
+// RenderHelp returns a context-sensitive one-line help string. viewMode
+// affects only the modeNormal hint list — left/right and move-card mean
+// different things in Gantt view (panning the timeline, not lane
+// navigation), and "m" (move between lanes) has no meaning there at all.
+func RenderHelp(mode boardMode, viewMode boardViewMode, width int) string {
 	var parts []string
 
 	key := func(k, desc string) string {
@@ -41,21 +44,41 @@ func RenderHelp(mode boardMode, width int) string {
 			key("esc", "clear"),
 		}
 	default: // modeNormal
-		parts = []string{
-			key("n", "new"),
-			key("e", "edit"),
-			key("d", "del"),
-			key("m", "move"),
-			key("b", "boards"),
-			key("S", "lanes"),
-			key("L", "labels"),
-			key("c", "checklist"),
-			key("v", "history"),
-			key("/", "search"),
-			key("T", "theme"),
-			key("←/→", "lane"),
-			key("↑/↓", "card"),
-			key("q", "quit"),
+		if viewMode == viewGantt {
+			parts = []string{
+				key("n", "new"),
+				key("e", "edit"),
+				key("d", "del"),
+				key("b", "boards"),
+				key("S", "lanes"),
+				key("L", "labels"),
+				key("c", "checklist"),
+				key("v", "history"),
+				key("/", "search"),
+				key("T", "theme"),
+				key("g", "kanban"),
+				key("←/→", "pan"),
+				key("↑/↓", "card"),
+				key("q", "quit"),
+			}
+		} else {
+			parts = []string{
+				key("n", "new"),
+				key("e", "edit"),
+				key("d", "del"),
+				key("m", "move"),
+				key("b", "boards"),
+				key("S", "lanes"),
+				key("L", "labels"),
+				key("c", "checklist"),
+				key("v", "history"),
+				key("/", "search"),
+				key("T", "theme"),
+				key("g", "gantt"),
+				key("←/→", "lane"),
+				key("↑/↓", "card"),
+				key("q", "quit"),
+			}
 		}
 	}
 

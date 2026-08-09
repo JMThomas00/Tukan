@@ -25,13 +25,13 @@ func TestCardFormViewDoesNotPanicAcrossSizes(t *testing.T) {
 }
 
 // TestCardFormSectionCyclingWraps confirms the cycle order matches the
-// two-column visual layout (Title/DueDate/Note stacked on the left, then
-// Assignees/Labels/Checklist stacked on the right) — reading order,
-// top-to-bottom then left-to-right, not the historical field order.
+// two-column visual layout (Title/StartDate/DueDate/Note stacked on the
+// left, then Assignees/Labels/Checklist stacked on the right) — reading
+// order, top-to-bottom then left-to-right, not the historical field order.
 func TestCardFormSectionCyclingWraps(t *testing.T) {
 	f := NewCardForm(1, nil, nil, 80, 24)
 
-	for _, want := range []int{sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionChecklist, sectionTitle} {
+	for _, want := range []int{sectionStartDate, sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionChecklist, sectionTitle} {
 		f = f.advanceSection(1)
 		if f.section != want {
 			t.Fatalf("section after advance = %d, want %d", f.section, want)
@@ -199,6 +199,68 @@ func TestCardFormSubmitWithNoAssigneeSucceeds(t *testing.T) {
 	}
 	if len(done.assigneeIDs) != 0 {
 		t.Fatalf("assigneeIDs = %v, want none", done.assigneeIDs)
+	}
+}
+
+// TestCardFormSubmitWithStartAndDueDateSucceeds confirms a valid start date
+// before the due date is accepted and carried onto the saved card.
+func TestCardFormSubmitWithStartAndDueDateSucceeds(t *testing.T) {
+	f := NewCardForm(1, nil, nil, 80, 24)
+	f.title.SetValue("Fix login")
+	f.startDate.SetValue("2026-08-10")
+	f.dueDate.SetValue("2026-08-20")
+
+	_, cmd := f.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if cmd == nil {
+		t.Fatal("expected a cardFormDoneMsg command")
+	}
+	done, ok := cmd().(cardFormDoneMsg)
+	if !ok {
+		t.Fatalf("expected cardFormDoneMsg, got a different type")
+	}
+	if done.cancelled {
+		t.Fatal("expected cancelled=false on save")
+	}
+	if done.card.StartDate == nil || done.card.StartDate.Format(dueDateLayout) != "2026-08-10" {
+		t.Fatalf("card.StartDate = %v, want 2026-08-10", done.card.StartDate)
+	}
+	if done.card.DueDate == nil || done.card.DueDate.Format(dueDateLayout) != "2026-08-20" {
+		t.Fatalf("card.DueDate = %v, want 2026-08-20", done.card.DueDate)
+	}
+}
+
+// TestCardFormSubmitRejectsStartDateAfterDueDate confirms the new
+// start-before-due validation blocks the save (mirroring the existing
+// invalid-date-format validation's early-return-with-error shape) rather
+// than silently accepting a nonsensical date range.
+func TestCardFormSubmitRejectsStartDateAfterDueDate(t *testing.T) {
+	f := NewCardForm(1, nil, nil, 80, 24)
+	f.title.SetValue("Fix login")
+	f.startDate.SetValue("2026-08-20")
+	f.dueDate.SetValue("2026-08-10")
+
+	updated, cmd := f.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if cmd != nil {
+		t.Fatal("expected no cardFormDoneMsg command — start-after-due should block the save")
+	}
+	if updated.err == "" {
+		t.Fatal("expected a validation error message")
+	}
+}
+
+// TestCardFormSubmitWithInvalidStartDateFails mirrors the existing
+// invalid-due-date-format test for the new start date field.
+func TestCardFormSubmitWithInvalidStartDateFails(t *testing.T) {
+	f := NewCardForm(1, nil, nil, 80, 24)
+	f.title.SetValue("Fix login")
+	f.startDate.SetValue("not-a-date")
+
+	updated, cmd := f.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
+	if cmd != nil {
+		t.Fatal("expected no cardFormDoneMsg command — invalid start date should block the save")
+	}
+	if updated.err == "" {
+		t.Fatal("expected a validation error message")
 	}
 }
 
