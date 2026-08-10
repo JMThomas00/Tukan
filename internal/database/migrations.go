@@ -140,6 +140,26 @@ var migrations = []migration{
 			`ALTER TABLE cards ADD COLUMN start_date TEXT`,
 		},
 	},
+	{
+		// Maps a Concord channel to the Tukan board it hosts, for server
+		// mode (Concord plugin integration). A separate table rather than
+		// a column on boards — keeps Concord-specific linkage out of the
+		// core kanban schema, same instinct as the assignee registry being
+		// its own table rather than a column on cards. channel_id is
+		// Concord's channel UUID stored as text (Tukan has no native UUID
+		// type/dependency otherwise); a board can be mapped to at most one
+		// channel, enforced by the primary key being channel_id itself
+		// (not board_id) since the relationship is one Concord channel ->
+		// one Tukan board, not the reverse.
+		version: 10,
+		desc:    "add plugin_channels (Concord channel -> Tukan board mapping)",
+		stmts: []string{
+			`CREATE TABLE IF NOT EXISTS plugin_channels (
+				channel_id TEXT    PRIMARY KEY,
+				board_id   INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE
+			);`,
+		},
+	},
 }
 
 func migrateTicketNumbers(db *sql.DB) error {

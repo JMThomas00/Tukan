@@ -248,6 +248,16 @@ func (f CardFormModel) submit() (CardFormModel, tea.Cmd) {
 
 func (f CardFormModel) advanceSection(delta int) CardFormModel {
 	f.section = (f.section + delta + sectionCount) % sectionCount
+	if f.mode == formCreate && f.section == sectionChecklist {
+		// Checklist items need a real card ID to save against
+		// (checklist_items.card_id is a foreign key) — a not-yet-created
+		// card has none, so a checklist add here would always fail
+		// silently (the resulting dbErrMsg sets the board's status bar,
+		// which isn't visible behind this modal). Skip past it exactly
+		// like Tab would skip a disabled field; it's reachable again once
+		// the card exists (EditCardForm).
+		f.section = (f.section + delta + sectionCount) % sectionCount
+	}
 	f.title.Blur()
 	f.note.Blur()
 	f.startDate.Blur()
@@ -326,10 +336,15 @@ func (f CardFormModel) View() string {
 	top.WriteString(f.dueDate.View() + "\n\n")
 	top.WriteString(label("Note (optional)", sectionNote))
 
+	checklistView := f.checklist.viewBare(f.section == sectionChecklist)
+	if f.mode == formCreate {
+		checklistView = styles.FormLabelStyle.Render("Checklist") + "\n\n" +
+			styles.CardNoteStyle.Render("Save the card first to add checklist items")
+	}
 	right := lipgloss.JoinVertical(lipgloss.Left,
 		f.assignees.viewBare(f.section == sectionAssignees), "",
 		f.labels.viewBare(f.section == sectionLabels), "",
-		f.checklist.viewBare(f.section == sectionChecklist))
+		checklistView)
 
 	footer := styles.HelpDescStyle.Render("tab next section  shift+tab prev  ctrl+s save  esc cancel")
 

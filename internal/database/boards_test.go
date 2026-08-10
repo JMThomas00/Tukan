@@ -61,6 +61,31 @@ func TestBoardCRUD(t *testing.T) {
 	}
 }
 
+// TestGetBoardByID confirms it fetches the exact board asked for (not just
+// "a" board) and returns an error for an id that doesn't exist.
+func TestGetBoardByID(t *testing.T) {
+	db := openTestDB(t)
+	if err := db.Migrate(); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	second, err := db.CreateBoard("Work", 1)
+	if err != nil {
+		t.Fatalf("create board: %v", err)
+	}
+
+	got, err := db.GetBoardByID(second.ID)
+	if err != nil {
+		t.Fatalf("get board by id: %v", err)
+	}
+	if got.ID != second.ID || got.Name != "Work" {
+		t.Fatalf("got = %+v, want id=%d name=Work", got, second.ID)
+	}
+
+	if _, err := db.GetBoardByID(999999); err == nil {
+		t.Fatal("expected an error for a nonexistent board id")
+	}
+}
+
 // TestBoardsAreIsolated confirms lanes/cards on one board never leak into
 // another board's queries, and deleting a board cascades to its own lanes
 // and cards without touching a sibling board.

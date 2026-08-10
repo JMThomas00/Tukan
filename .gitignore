@@ -1,6 +1,9 @@
-# Compiled binaries
-tukan
-tukan.exe
+# Compiled binaries (anchored to repo root — bare names would otherwise also
+# match cmd/tukan/ and cmd/tukan-server/, silently excluding those packages)
+/tukan
+/tukan.exe
+/tukan-server
+/tukan-server.exe
 *.exe~
 
 # Go build cache

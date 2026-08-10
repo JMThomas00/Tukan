@@ -1,0 +1,33 @@
+[plugin]
+id      = "Tukan"
+name    = "Tukan"
+version = "0.1.0"
+
+[process]
+restart_on_crash        = true
+max_restarts            = 5
+restart_backoff_seconds = 5
+
+[process.entrypoint.windows]
+bin = "tukan-server.exe"
+[process.entrypoint.linux]
+bin = "tukan-server"
+[process.entrypoint.darwin]
+bin = "tukan-server"
+
+[[channel_kind]]
+kind         = "board"
+display_name = "Kanban Board"
+icon         = "◱"
+remote_pane  = true
+
+  [[channel_kind.create_field]]
+  key      = "board_name"
+  label    = "Board Name"
+  type     = "text"
+  required = true
+
+[[server_config_field]]
+key   = "activity_notify_channel"
+label = "Activity Notification Channel"
+type  = "channel_select"

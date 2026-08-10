@@ -40,6 +40,19 @@ func (d *DB) ListBoards() ([]models.Board, error) {
 	return boards, rows.Err()
 }
 
+// GetBoardByID returns a single board, for callers that already know which
+// board they want (e.g. server mode resolving a Concord channel to its
+// mapped board) rather than needing the full ListBoards result just to
+// filter it down to one row.
+func (d *DB) GetBoardByID(id int64) (models.Board, error) {
+	row := d.sql.QueryRow(`SELECT `+boardColumns+` FROM boards WHERE id=?`, id)
+	b, err := scanBoard(row.Scan)
+	if err != nil {
+		return models.Board{}, fmt.Errorf("get board: %w", err)
+	}
+	return b, nil
+}
+
 // CreateBoard inserts a new board and returns it with its assigned ID.
 func (d *DB) CreateBoard(name string, position int) (models.Board, error) {
 	res, err := d.sql.Exec(

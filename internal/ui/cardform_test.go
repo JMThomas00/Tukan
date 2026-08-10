@@ -28,8 +28,12 @@ func TestCardFormViewDoesNotPanicAcrossSizes(t *testing.T) {
 // two-column visual layout (Title/StartDate/DueDate/Note stacked on the
 // left, then Assignees/Labels/Checklist stacked on the right) — reading
 // order, top-to-bottom then left-to-right, not the historical field order.
+// Uses EditCardForm (an already-saved card) since sectionChecklist is only
+// reachable at all once the card has a real ID — see
+// TestCardFormSectionCyclingSkipsChecklistWhileCreating for the create-mode
+// behavior this would otherwise mask.
 func TestCardFormSectionCyclingWraps(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := EditCardForm(models.Card{ID: 1, LaneID: 1}, nil, nil, nil, nil, nil, 80, 24)
 
 	for _, want := range []int{sectionStartDate, sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionChecklist, sectionTitle} {
 		f = f.advanceSection(1)
@@ -42,6 +46,32 @@ func TestCardFormSectionCyclingWraps(t *testing.T) {
 	f = f.advanceSection(-1)
 	if f.section != sectionChecklist {
 		t.Fatalf("section after advance(-1) from title = %d, want sectionChecklist (%d)", f.section, sectionChecklist)
+	}
+}
+
+// TestCardFormSectionCyclingSkipsChecklistWhileCreating is the regression
+// test for the bug found live: a not-yet-created card has ID 0, and
+// checklist_items.card_id is a foreign-key column, so adding an item to a
+// new card's checklist before saving always failed — silently, since the
+// resulting error sets the board's status bar, which isn't visible behind
+// this modal. sectionChecklist must not be reachable via Tab/shift+tab
+// while creating; it becomes reachable again once the card is saved and
+// reopened via EditCardForm (see TestCardFormSectionCyclingWraps).
+func TestCardFormSectionCyclingSkipsChecklistWhileCreating(t *testing.T) {
+	f := NewCardForm(1, nil, nil, 80, 24)
+
+	for _, want := range []int{sectionStartDate, sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionTitle} {
+		f = f.advanceSection(1)
+		if f.section != want {
+			t.Fatalf("section after advance = %d, want %d (sectionChecklist should be skipped entirely)", f.section, want)
+		}
+	}
+
+	// And backwards from sectionTitle should skip straight to sectionLabels,
+	// not land on sectionChecklist either.
+	f = f.advanceSection(-1)
+	if f.section != sectionLabels {
+		t.Fatalf("section after advance(-1) from title = %d, want sectionLabels (%d) — sectionChecklist should be skipped", f.section, sectionLabels)
 	}
 }
 

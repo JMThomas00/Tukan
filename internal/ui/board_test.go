@@ -93,6 +93,38 @@ func TestBoardViewRendersExactlyItsOwnHeight(t *testing.T) {
 	}
 }
 
+// TestBoardViewNeverExceedsItsOwnWidth is width's sibling to
+// TestBoardViewRendersExactlyItsOwnHeight, added after the exact bug it
+// guards was found live against a real Concord server: laneWidth()'s old
+// formula subtracted "gutters" (len(lanes)-1) that were never actually
+// inserted between lanes — JoinHorizontal butts them directly together —
+// while not accounting for each lane's own 2-column border overhead, so
+// every lane rendered 2 columns wider than intended (observed live: told
+// width=106, rendered maxWidth=108). A real terminal swallows that
+// overflow invisibly; Concord's client re-wraps the already-rendered ANSI
+// frame to an exact width elsewhere, and that overflow corrupted every
+// line of the board when it did.
+//
+// Unlike height, width isn't required to be exact — integer lane-count
+// division can legitimately under-fill by a few columns, which is
+// harmless since a too-narrow frame just gets padded by the caller, not
+// wrapped — but it must never exceed b.width. Widths below 80 are excluded
+// deliberately: at 4 lanes, laneWidth()'s own 18-char-minimum floor (a
+// documented, intentional readability guarantee) forces legitimate
+// overflow at very narrow terminals, which is an accepted tradeoff, not
+// what this test guards.
+func TestBoardViewNeverExceedsItsOwnWidth(t *testing.T) {
+	_, b := newTestBoard(t)
+	b.height = 30
+
+	for _, w := range []int{80, 106, 150, 200} {
+		b.width = w
+		if got := lipgloss.Width(b.View()); got > w {
+			t.Fatalf("lipgloss.Width(b.View()) = %d at b.width=%d, want <= %d", got, w, w)
+		}
+	}
+}
+
 // TestRenderBoardHeaderIsAlwaysExactlyTwoLines guards boardChrome's fixed
 // assumption directly: renderBoardHeader must never wrap to 3+ lines,
 // however long the board name or however narrow the terminal, since

@@ -948,8 +948,21 @@ func (b BoardModel) laneWidth() int {
 	if len(b.lanes) == 0 || b.width == 0 {
 		return 30
 	}
-	gutters := len(b.lanes) - 1
-	w := (b.width - gutters) / len(b.lanes)
+	// Each lane's actual rendered width is laneWidth()+2 — LaneStyle's
+	// 1-char border on each side (its Padding(0,1) is already inside
+	// .Width() itself, per lipgloss's box model: padding sits inside the
+	// width, only the border sits outside it). JoinHorizontal butts lanes
+	// directly against each other with no separator of its own, so the
+	// board's total rendered width is len(lanes)*(w+2), not the
+	// "len(lanes)-1 gutters" this used to subtract (which assumed a
+	// 1-char gap between lanes that was never actually inserted). That
+	// silently rendered every lane 2 columns wider than intended — a real
+	// terminal just swallows the overflow invisibly, but server mode
+	// re-wraps the already-rendered frame to an exact width elsewhere
+	// (Concord's client), and that overflow corrupts every line when it
+	// does.
+	const borderOverhead = 2
+	w := (b.width - len(b.lanes)*borderOverhead) / len(b.lanes)
 	if w < 18 {
 		w = 18
 	}
