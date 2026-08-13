@@ -39,6 +39,7 @@ type EventType string
 
 const (
 	EventChannelCreate    EventType = "CHANNEL_CREATE"
+	EventChannelUpdate    EventType = "CHANNEL_UPDATE"
 	EventPluginPaneEnter  EventType = "PLUGIN_PANE_ENTER"
 	EventPluginPaneInput  EventType = "PLUGIN_PANE_INPUT"
 	EventPluginPaneLeave  EventType = "PLUGIN_PANE_LEAVE"
@@ -147,15 +148,17 @@ type PluginPaneClosePayload struct {
 }
 
 // Channel is a minimal mirror of models.Channel — only the fields Tukan
-// actually reads off a CHANNEL_CREATE event (identifying it as one of
-// Tukan's own "board" channels, and its display name). Concord's full
-// Channel struct carries far more (permission overwrites, DM recipients,
-// voice settings) that Tukan has no use for.
+// actually reads off a CHANNEL_CREATE/CHANNEL_UPDATE event (identifying it
+// as one of Tukan's own "board" channels, its display name, and its current
+// create_field config). Concord's full Channel struct carries far more
+// (permission overwrites, DM recipients, voice settings) that Tukan has no
+// use for.
 type Channel struct {
-	ID                uuid.UUID `json:"id"`
-	Name              string    `json:"name"`
-	PluginID          string    `json:"plugin_id,omitempty"`
-	PluginChannelKind string    `json:"plugin_channel_kind,omitempty"`
+	ID                uuid.UUID         `json:"id"`
+	Name              string            `json:"name"`
+	PluginID          string            `json:"plugin_id,omitempty"`
+	PluginChannelKind string            `json:"plugin_channel_kind,omitempty"`
+	PluginConfig      map[string]string `json:"plugin_config,omitempty"`
 }
 
 // ChannelCreatePayload mirrors protocol.ChannelCreatePayload's embedding of
@@ -166,4 +169,18 @@ type Channel struct {
 type ChannelCreatePayload struct {
 	*Channel
 	PluginConfig map[string]string `json:"plugin_config,omitempty"`
+}
+
+// ChannelUpdatePayload mirrors protocol.ChannelUpdatePayload, which embeds
+// *models.Channel with no separate field of its own — models.Channel
+// carries PluginConfig directly (Concord added this after ChannelCreatePayload
+// was first written, hence that one's redundant-looking own field above),
+// so it's promoted straight through here too. Concord pushes this to a
+// plugin's own connection both on a live channel edit and — since
+// 2026-08-12 — once for every channel a plugin owns, right after every
+// identify/reconnect (see identifyAsPlugin on Concord's side), specifically
+// so a plugin can repair a missing/forgotten channel registration without
+// needing a brand new CHANNEL_CREATE.
+type ChannelUpdatePayload struct {
+	*Channel
 }

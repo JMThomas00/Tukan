@@ -53,6 +53,8 @@ func (s *Server) handle(msg *wire.Message) {
 	switch msg.Type {
 	case wire.EventChannelCreate:
 		err = s.handleChannelCreate(msg.Data)
+	case wire.EventChannelUpdate:
+		err = s.handleChannelUpdate(msg.Data)
 	case wire.EventPluginPaneEnter:
 		err = s.handleEnter(msg.Data)
 	case wire.EventPluginPaneResize:
@@ -98,6 +100,46 @@ func (s *Server) handleChannelCreate(data json.RawMessage) error {
 		return fmt.Errorf("create board for channel %s: %w", channelID, err)
 	}
 	s.channels[channelID] = newChannelBoard(board.ID)
+	return nil
+}
+
+// handleChannelUpdate repairs a plugin channel's board mapping when
+// resolveChannel can't find it in either this process's memory or Tukan's
+// own database — the same "genuinely unknown channel" case
+// handleChannelCreate already handles for a brand new channel, just reached
+// via Concord's CHANNEL_UPDATE push (a live edit, or — since 2026-08-12 —
+// once for every owned channel right after identify/reconnect) instead of
+// channel creation. A safe no-op once the mapping already exists either way.
+func (s *Server) handleChannelUpdate(data json.RawMessage) error {
+	var payload wire.ChannelUpdatePayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return fmt.Errorf("unmarshal channel update: %w", err)
+	}
+	if payload.Channel == nil || payload.PluginID != s.pluginID {
+		return nil
+	}
+	channelID := payload.Channel.ID.String()
+
+	cb, err := s.resolveChannel(channelID)
+	if err != nil {
+		return err
+	}
+	if cb != nil {
+		return nil
+	}
+
+	boardName := payload.PluginConfig["board_name"]
+	if boardName == "" {
+		boardName = payload.Channel.Name
+	}
+	board, err := s.db.CreateBoardForChannel(channelID, boardName)
+	if err != nil {
+		return fmt.Errorf("create board for channel %s: %w", channelID, err)
+	}
+
+	s.mu.Lock()
+	s.channels[channelID] = newChannelBoard(board.ID)
+	s.mu.Unlock()
 	return nil
 }
 
