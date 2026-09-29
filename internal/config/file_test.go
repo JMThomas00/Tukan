@@ -12,8 +12,17 @@ import (
 func withTempUserConfigDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("APPDATA", dir) // os.UserConfigDir() on Windows reads %APPDATA%
-	return dir
+	// os.UserConfigDir reads %APPDATA% on Windows, $XDG_CONFIG_HOME on
+	// Linux and $HOME (Library/Application Support) on macOS: point them all
+	// at the temp dir, then use what it resolves to.
+	t.Setenv("APPDATA", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	base, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return base
 }
 
 func TestLoadFileConfigCreatesOnMissing(t *testing.T) {
