@@ -24,7 +24,8 @@ github.com/JMThomas00/tukan
 ## Directory Structure
 ```
 d:\Tukan\
-├── cmd/tukan/main.go               Entry point: DB init, seed, tea.NewProgram
+├── main.go                         Entry point: standalone TUI (DB init, seed, tea.NewProgram), or the Concord plugin when CONCORD_* is set
+├── internal/concord/               Concord plugin on the SDK (github.com/JMThomas00/Concord/sdk): a board per channel, a BoardModel per viewer (pane.Host), reload broadcast + coalesced activity notices on change
 ├── internal/
 │   ├── config/
 │   │   ├── config.go               Config struct and Default() — DB path, splash duration
@@ -124,13 +125,13 @@ cards  (id, lane_id, title, assignee, note, position, created_at, updated_at)
 ## Building
 ```bash
 # Windows binary (production)
-GOOS=windows GOARCH=amd64 GOCACHE="$LOCALAPPDATA/go-build" go build -ldflags="-s -w" -o tukan.exe ./cmd/tukan
+GOOS=windows GOARCH=amd64 GOCACHE="$LOCALAPPDATA/go-build" go build -ldflags="-s -w" -o tukan.exe .
 
 # Note: `make build-windows` fails in bash make due to GOCACHE being reset to C:\WINDOWS\.
 # Run the go build command directly instead.
 
 # Development run
-go run ./cmd/tukan
+go run .
 ```
 
 ## Verifying Changes

@@ -1,33 +1,40 @@
+# Concord reads this to install and run Tukan. Admins never edit it: the
+# settings below appear as forms in Concord (Server Settings > Plugins for
+# server_config_field, the channel's own settings for create_field).
+
 [plugin]
-id      = "Tukan"
-name    = "Tukan"
-version = "0.1.0"
+id = "Tukan"
+name = "Tukan"
+version = "0.2.0"            # release.go stamps the git tag here
+description = "A kanban board in a channel, shared live by everyone viewing it."
+source_url = "https://github.com/JMThomas00/Tukan"
 
 [process]
-restart_on_crash        = true
-max_restarts            = 5
+restart_on_crash = true
+max_restarts = 5
 restart_backoff_seconds = 5
 
-[process.entrypoint.windows]
-bin = "tukan-server.exe"
 [process.entrypoint.linux]
-bin = "tukan-server"
+bin = "tukan"
 [process.entrypoint.darwin]
-bin = "tukan-server"
+bin = "tukan"
+[process.entrypoint.windows]
+bin = "tukan.exe"
 
 [[channel_kind]]
-kind         = "board"
+kind = "board"
 display_name = "Kanban Board"
-icon         = "◱"
-remote_pane  = true
+icon = "◱"
+remote_pane = true
 
   [[channel_kind.create_field]]
-  key      = "board_name"
-  label    = "Board Name"
-  type     = "text"
-  required = true
+  key = "board_name"
+  label = "Board name"
+  type = "text"
+  help = "Shown at the top of the board; the channel's name if left empty"
 
 [[server_config_field]]
-key   = "activity_notify_channel"
-label = "Activity Notification Channel"
-type  = "channel_select"
+key = "activity_notify_channel"
+label = "Activity notification channel"
+type = "channel_select"
+help = "Where Tukan posts a line when a card is created, changed or deleted (none if empty)"

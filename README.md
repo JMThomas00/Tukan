@@ -29,26 +29,45 @@ A keyboard-driven, terminal UI Kanban board built in Go.
 - **Splash screen** — ASCII art logo on startup with a timed transition to the board
 - **Self-contained binary** — no external runtime dependencies, no CGO
 
-## Installation
+## Run it on your own computer
 
-### Pre-built binary
+**Download:** from the [Releases](https://github.com/JMThomas00/Tukan/releases)
+page, get the zip for your system (`tukan_windows_amd64.zip`,
+`tukan_darwin_arm64.zip` for Apple silicon, `tukan_linux_amd64.zip`, ...),
+unzip it, and run the program inside from a terminal:
 
-Download `tukan.exe` from the releases page and place it anywhere on your `PATH`.
-
-### Build from source
-
-Requires Go 1.22 or later.
-
-```bash
-git clone https://github.com/JMThomas00/tukan
-cd tukan
-
-# Windows
-GOOS=windows GOARCH=amd64 GOCACHE="$LOCALAPPDATA/go-build" go build -ldflags="-s -w" -o tukan.exe ./cmd/tukan
-
-# Other platforms
-go build -o tukan ./cmd/tukan
+```sh
+./tukan          # Windows: .\tukan.exe
 ```
+
+On macOS, if it's blocked as being from an unidentified developer, run
+`xattr -d com.apple.quarantine tukan` once. **Or with Go installed:**
+`go install github.com/JMThomas00/tukan@latest`, then run `tukan`.
+
+To build from source: `go build .` (pure Go, no CGO), or `make build-windows`.
+
+## Use it on a Concord server
+
+Tukan is also a [Concord](https://github.com/JMThomas00/Concord) plugin: a
+board in a channel, shared live by everyone viewing it (each person has
+their own cursor; changes show up for everyone at once).
+
+You need to be the server owner, or have the **Manage Plugins** permission.
+
+1. In Concord, open **Server Settings → Plugins** and press **I** (install).
+2. Type `JMThomas00/Tukan` and press Enter. Concord downloads the release for
+   the server's system, verifies it and starts it.
+3. Optional: select **Tukan**, press **Enter**, and pick an **Activity notification
+   channel**. Tukan posts there when a card is created, changed or deleted.
+4. Open **Server Settings → Channels**, create a channel, and choose **Kanban Board**
+   as its type (give the board a name, or it takes the channel's).
+5. Select the channel and press **Tab** (or click the board) so your keys go to
+   it. **q** on the board, or **Ctrl+]** anywhere, gives the keyboard back to
+   Concord.
+
+To update later: select it in **Server Settings → Plugins**, press **U**, then
+Enter. Boards live in the plugin's data folder on the server and survive
+updates.
 
 ## Usage
 
@@ -122,8 +141,9 @@ The directory and database are created automatically on first run. To reset the 
 
 ```
 tukan/
-├── cmd/tukan/main.go        Entry point
+├── main.go                  Entry point: standalone TUI, or Concord plugin
 ├── internal/
+│   ├── concord/             Concord plugin: a board per channel, one model per viewer
 │   ├── config/              Application config and embedded logo asset
 │   ├── database/            SQLite layer (schema, migrations, CRUD)
 │   ├── models/              Domain types: Lane, Card
@@ -144,7 +164,7 @@ tukan/
 
 | Component | Library |
 |---|---|
-| TUI framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) v1.2.4 |
+| TUI framework | [Bubble Tea](https://github.com/charmbracelet/bubbletea) v1.3.4 |
 | Terminal styling | [Lip Gloss](https://github.com/charmbracelet/lipgloss) v1.1.0 |
 | UI components | [Bubbles](https://github.com/charmbracelet/bubbles) v0.20.0 |
 | Database | [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) v1.34.4 (pure Go, no CGO) |
