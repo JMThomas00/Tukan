@@ -1953,3 +1953,19 @@ func clamp(v, min, max int) int {
 	}
 	return v
 }
+
+// ClaimedKeys says which of Concord's navigation keys ("esc", "tab",
+// "shift+tab") the board needs right now. In Concord those keys move focus
+// between panels unless the pane claims them, so the board claims Esc only
+// while there's something for it to cancel (an overlay, a card being moved
+// or deleted, a filter), and Tab and Shift+Tab only while an overlay with
+// fields is open. Standalone, every key reaches the board regardless.
+func (b BoardModel) ClaimedKeys() []string {
+	switch {
+	case b.formActive, b.laneManagerActive, b.switcherActive:
+		return []string{"esc", "tab", "shift+tab"}
+	case b.cardEventsActive, b.themeSwitcherActive, b.mode != modeNormal, b.filterQuery != "":
+		return []string{"esc"}
+	}
+	return nil
+}

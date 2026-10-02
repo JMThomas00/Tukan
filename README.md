@@ -62,8 +62,9 @@ You need to be the server owner, or have the **Manage Plugins** permission.
 4. Open **Server Settings → Channels**, create a channel, and choose **Kanban Board**
    as its type (give the board a name, or it takes the channel's).
 5. Select the channel and press **Tab** (or click the board) so your keys go to
-   it. **q** on the board, or **Ctrl+]** anywhere, gives the keyboard back to
-   Concord.
+   it. **Esc** gives the keyboard back to Concord and **Tab** moves on to the
+   member list, as in any channel. While a card form, picker or filter is
+   open, Esc and Tab work inside it instead; **Ctrl+]** always leaves.
 
 To update later: select it in **Server Settings → Plugins**, press **U**, then
 Enter. Boards live in the plugin's data folder on the server and survive

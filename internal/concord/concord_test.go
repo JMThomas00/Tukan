@@ -88,3 +88,29 @@ func TestQLeavesOnlyFromTheMainView(t *testing.T) {
 		t.Fatalf("q on the main view sent %s", ev.Kind)
 	}
 }
+
+// The card form claims Esc, Tab and Shift+Tab (to cancel and to move
+// between fields); the plain board claims none, so in Concord they move
+// focus between panels.
+func TestNavigationKeysClaimedOnlyByOverlays(t *testing.T) {
+	srv, ch, _ := rig(t)
+	v := srv.Enter(ch, "alice", 100, 30)
+	srv.FrameContaining(v, "Sprint Board")
+	if c := srv.Claimed(v); len(c) != 0 {
+		t.Fatalf("the board claims %v", c)
+	}
+	srv.Key(v, "n")
+	srv.Type(v, "draft")
+	srv.FrameContaining(v, "draft")
+	if c := srv.Claimed(v); len(c) != 3 {
+		t.Fatalf("the card form claims %v", c)
+	}
+	if !srv.Key(v, "tab") || !srv.Key(v, "esc") {
+		t.Fatal("the form's keys didn't reach it")
+	}
+	for strings.Contains(srv.NextFrame(v), "draft") { // until the form closes
+	}
+	if c := srv.Claimed(v); len(c) != 0 {
+		t.Fatalf("still claiming %v after the form closed", c)
+	}
+}

@@ -183,6 +183,10 @@ func (m *boardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *boardModel) View() string { return m.board.View() }
 
+// ClaimedKeys (pane.KeyClaimer) passes on which of Esc, Tab and Shift+Tab
+// the board needs: the rest of the time they move focus around Concord.
+func (m *boardModel) ClaimedKeys() []string { return m.board.ClaimedKeys() }
+
 // message is a model that just shows text.
 type message string
 
