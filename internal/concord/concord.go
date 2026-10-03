@@ -21,6 +21,7 @@ import (
 	"github.com/JMThomas00/Concord/sdk/wire"
 
 	"github.com/JMThomas00/tukan/internal/database"
+	"github.com/JMThomas00/tukan/internal/models"
 	"github.com/JMThomas00/tukan/internal/ui"
 )
 
@@ -194,25 +195,76 @@ func (m message) Init() tea.Cmd                       { return nil }
 func (m message) Update(tea.Msg) (tea.Model, tea.Cmd) { return m, nil }
 func (m message) View() string                        { return lipgloss.NewStyle().Padding(1, 2).Render(string(m)) }
 
-// notifyText describes a change for the activity channel: a created card
-// by title, a deleted one, or anything else as "updated".
+// notifyText describes a change for the activity channel, naming the card
+// by its ticket number and title and saying what happened to it:
+// "#1 Plugins Help moved to In Progress".
 func notifyText(before, after ui.ContentSnapshot) (string, bool) {
-	switch {
-	case len(after.Cards) > len(before.Cards):
-		seen := make(map[int64]bool, len(before.Cards))
-		for _, c := range before.Cards {
-			seen[c.ID] = true
-		}
-		for _, c := range after.Cards {
-			if !seen[c.ID] {
-				return "A card was created: " + c.Title, true
-			}
-		}
-		return "A card was created", true
-	case len(after.Cards) < len(before.Cards):
-		return "A card was deleted", true
-	case !reflect.DeepEqual(before, after):
-		return "A card was updated", true
+	if reflect.DeepEqual(before, after) {
+		return "", false
 	}
-	return "", false
+	old := make(map[int64]models.Card, len(before.Cards))
+	for _, c := range before.Cards {
+		old[c.ID] = c
+	}
+	now := make(map[int64]models.Card, len(after.Cards))
+	for _, c := range after.Cards {
+		now[c.ID] = c
+	}
+	name := func(c models.Card) string { return fmt.Sprintf("#%d %s", c.TicketNo, c.Title) }
+	lane := func(s ui.ContentSnapshot, id int64) string {
+		if n := s.LaneNames[id]; n != "" {
+			return n
+		}
+		return "another lane"
+	}
+	for _, c := range after.Cards {
+		if _, ok := old[c.ID]; !ok {
+			return name(c) + " created in " + lane(after, c.LaneID), true
+		}
+	}
+	for _, c := range before.Cards {
+		if _, ok := now[c.ID]; !ok {
+			return name(c) + " deleted", true
+		}
+	}
+	for _, c := range after.Cards {
+		b := old[c.ID]
+		switch {
+		case b.LaneID != c.LaneID:
+			return name(c) + " moved to " + lane(after, c.LaneID), true
+		case b.Title != c.Title:
+			return fmt.Sprintf("#%d %s renamed to %s", c.TicketNo, b.Title, c.Title), true
+		case b.Note != c.Note:
+			return name(c) + ": note edited", true
+		case !sameDate(b.DueDate, c.DueDate):
+			if c.DueDate == nil {
+				return name(c) + ": due date removed", true
+			}
+			return name(c) + ": due " + c.DueDate.Format("Jan 2"), true
+		case !sameDate(b.StartDate, c.StartDate):
+			return name(c) + ": start date changed", true
+		case !reflect.DeepEqual(before.Assignees[c.ID], after.Assignees[c.ID]):
+			return name(c) + ": assignees changed", true
+		case !reflect.DeepEqual(before.Labels[c.ID], after.Labels[c.ID]):
+			return name(c) + ": labels changed", true
+		case !reflect.DeepEqual(before.Checklists[c.ID], after.Checklists[c.ID]):
+			done, total := 0, len(after.Checklists[c.ID])
+			for _, it := range after.Checklists[c.ID] {
+				if it.Done {
+					done++
+				}
+			}
+			return fmt.Sprintf("%s: checklist %d/%d", name(c), done, total), true
+		case b.Position != c.Position:
+			return name(c) + " reordered in " + lane(after, c.LaneID), true
+		}
+	}
+	return "The board was updated", true
+}
+
+func sameDate(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }

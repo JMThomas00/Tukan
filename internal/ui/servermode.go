@@ -107,6 +107,7 @@ type ContentSnapshot struct {
 	Assignees  map[int64][]models.Assignee
 	Labels     map[int64][]models.Label
 	Checklists map[int64][]models.ChecklistItem
+	LaneNames  map[int64]string // for describing a change ("moved to In Progress")
 }
 
 // Snapshot builds a ContentSnapshot from this BoardModel's own in-memory
@@ -153,5 +154,10 @@ func (b BoardModel) Snapshot() ContentSnapshot {
 		checklists[id] = cp
 	}
 
-	return ContentSnapshot{Cards: cards, Assignees: assignees, Labels: labels, Checklists: checklists}
+	laneNames := make(map[int64]string, len(b.lanes))
+	for _, l := range b.lanes {
+		laneNames[l.ID] = l.Name
+	}
+
+	return ContentSnapshot{Cards: cards, Assignees: assignees, Labels: labels, Checklists: checklists, LaneNames: laneNames}
 }

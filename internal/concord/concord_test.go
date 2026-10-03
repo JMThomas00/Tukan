@@ -2,6 +2,8 @@ package concord
 
 import (
 	"context"
+	"github.com/JMThomas00/tukan/internal/models"
+	"github.com/JMThomas00/tukan/internal/ui"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -62,7 +64,7 @@ func TestEditsReachOtherViewersAndNotifyOnce(t *testing.T) {
 	srv.FrameContaining(bob, "Ship streaming")
 
 	ev := srv.NextEvent()
-	if ev.Kind != wire.PluginEventNotify || !strings.Contains(string(ev.Payload), "A card was created: Ship streaming") {
+	if ev.Kind != wire.PluginEventNotify || !strings.Contains(string(ev.Payload), "Ship streaming created in ") {
 		t.Fatalf("notify = %s %s", ev.Kind, ev.Payload)
 	}
 	time.Sleep(2 * notifyDelay)
@@ -112,5 +114,23 @@ func TestNavigationKeysClaimedOnlyByOverlays(t *testing.T) {
 	}
 	if c := srv.Claimed(v); len(c) != 0 {
 		t.Fatalf("still claiming %v after the form closed", c)
+	}
+}
+
+func TestNotifyTextNamesTheCardAndWhatHappened(t *testing.T) {
+	lanes := map[int64]string{1: "To Do", 2: "In Progress"}
+	card := models.Card{ID: 7, LaneID: 1, Title: "Plugins Help", TicketNo: 1}
+	before := ui.ContentSnapshot{Cards: []models.Card{card}, LaneNames: lanes}
+	moved := card
+	moved.LaneID = 2
+	after := ui.ContentSnapshot{Cards: []models.Card{moved}, LaneNames: lanes}
+	if got, _ := notifyText(before, after); got != "#1 Plugins Help moved to In Progress" {
+		t.Fatalf("got %q", got)
+	}
+	if got, _ := notifyText(after, ui.ContentSnapshot{LaneNames: lanes}); got != "#1 Plugins Help deleted" {
+		t.Fatalf("got %q", got)
+	}
+	if _, ok := notifyText(before, before); ok {
+		t.Fatal("a notice for no change")
 	}
 }
