@@ -36,6 +36,7 @@ type Server struct {
 
 	conn    *plugin.Conn // set on connect; used only from callbacks
 	pending map[uuid.UUID]*pendingNotice
+	records map[uuid.UUID]*memberRecord // cards created and finished, per member (records.go)
 }
 
 // New builds a Server over db; themeName is Tukan's theme for every viewer.
@@ -118,6 +119,7 @@ func (s *Server) changed(channelID, by uuid.UUID, before, after ui.ContentSnapsh
 	if s.conn == nil {
 		return
 	}
+	s.countChange(by, before, after)
 	if p, ok := s.pending[channelID]; ok {
 		p.after = after
 		return

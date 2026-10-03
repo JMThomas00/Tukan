@@ -38,3 +38,40 @@ key = "activity_notify_channel"
 label = "Activity notification channel"
 type = "channel_select"
 help = "Where Tukan posts a line when a card is created, changed or deleted (none if empty)"
+
+# Achievements and the leaderboard: Tukan counts the cards each member
+# creates and finishes (moves into a Done lane); members see their record
+# on Settings > About > Achievements.
+[[achievement]]
+id = "first_card"
+name = "First Card"
+description = "Create a card"
+icon = "🗂"
+
+[[achievement]]
+id = "cards_25"
+name = "Busy Bee"
+description = "Create 25 cards"
+tier = "silver"
+
+[[achievement]]
+id = "first_done"
+name = "Done and Dusted"
+description = "Move a card to Done"
+tier = "bronze"
+
+[[achievement]]
+id = "done_10"
+name = "Finisher"
+description = "Finish ten cards"
+tier = "silver"
+
+[[achievement]]
+id = "done_100"
+name = "Shipping Machine"
+description = "Finish a hundred cards"
+tier = "gold"
+
+[leaderboard]
+stat = "finished"
+label = "Cards finished"

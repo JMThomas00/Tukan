@@ -63,7 +63,12 @@ func TestEditsReachOtherViewersAndNotifyOnce(t *testing.T) {
 	srv.Key(alice, "ctrl+s")
 	srv.FrameContaining(bob, "Ship streaming")
 
+	// alice's record (a card created) comes first, then the notice.
 	ev := srv.NextEvent()
+	if ev.Kind != wire.PluginEventRecord || !strings.Contains(string(ev.Payload), `"first_card"`) {
+		t.Fatalf("record = %s %s", ev.Kind, ev.Payload)
+	}
+	ev = srv.NextEvent()
 	if ev.Kind != wire.PluginEventNotify || !strings.Contains(string(ev.Payload), "Ship streaming created in ") {
 		t.Fatalf("notify = %s %s", ev.Kind, ev.Payload)
 	}

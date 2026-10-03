@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/JMThomas00/Concord/sdk v0.7.0
+	github.com/JMThomas00/Concord/sdk v0.9.0
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.3.1 // indirect
