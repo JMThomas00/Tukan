@@ -188,3 +188,7 @@ The architecture is designed to accommodate these expansions without significant
 - **Card archival** — An `is_archived` flag can be added to hide completed work without deleting it.
 - **Custom themes** — All colors are defined as named constants in `styles/styles.go`; swapping the palette changes the entire UI.
 - **Due dates and priorities** — Additional card fields can be added to the schema and form without restructuring the existing code.
+
+## License
+
+MIT License — see LICENSE file for details.
