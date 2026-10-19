@@ -7,6 +7,7 @@ import (
 
 	"github.com/JMThomas00/tukan/internal/database"
 	"github.com/JMThomas00/tukan/internal/models"
+	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 // NewBoardForID synchronously loads a specific board by ID — for callers
@@ -18,7 +19,11 @@ import (
 // "the first one" is meaningless there). Synchronous rather than returning
 // a tea.Cmd: server mode isn't racing a splash screen the way the CLI's own
 // startup does, so there's no reason to defer the load.
-func NewBoardForID(db *database.DB, boardID int64, width, height int, themeName string) (BoardModel, error) {
+//
+// sty is the board's own styles — server mode builds one per viewer from
+// their Concord theme — and the board treats its theme as host-controlled:
+// the in-app theme switcher is off (see SetStyles).
+func NewBoardForID(db *database.DB, boardID int64, width, height int, sty *styles.Styles) (BoardModel, error) {
 	board, err := db.GetBoardByID(boardID)
 	if err != nil {
 		return BoardModel{}, fmt.Errorf("load board %d: %w", boardID, err)
@@ -32,24 +37,32 @@ func NewBoardForID(db *database.DB, boardID int64, width, height int, themeName 
 	fi.Placeholder = "search title / assignee / note..."
 
 	b := BoardModel{
-		db:               db,
-		width:            width,
-		height:           height,
-		boards:           []models.Board{board},
-		currentBoardID:   boardID,
-		lanes:            st.lanes,
-		cards:            st.cards,
-		allAssignees:     st.allAssignees,
-		cardAssignees:    st.cardAssignees,
-		boardLabels:      st.labels,
-		cardLabels:       st.cardLabels,
-		checklists:       st.checklists,
-		laneScroll:       make([]int, len(st.lanes)),
-		filterInput:      fi,
-		currentThemeName: themeName,
+		db:             db,
+		width:          width,
+		height:         height,
+		boards:         []models.Board{board},
+		currentBoardID: boardID,
+		lanes:          st.lanes,
+		cards:          st.cards,
+		allAssignees:   st.allAssignees,
+		cardAssignees:  st.cardAssignees,
+		boardLabels:    st.labels,
+		cardLabels:     st.cardLabels,
+		checklists:     st.checklists,
+		laneScroll:     make([]int, len(st.lanes)),
+		filterInput:    fi,
+		st:             sty,
+		themeLocked:    true,
 	}
 	b.clampCursor()
 	return b, nil
+}
+
+// SetStyles recolors the board, e.g. when its viewer switches Concord
+// theme. The styles are copied into the board's own *styles.Styles, which
+// every open overlay shares, so they all pick it up on the next View().
+func (b *BoardModel) SetStyles(st *styles.Styles) {
+	*b.st = *st
 }
 
 // Reload re-fetches this board's full state from the database in place —

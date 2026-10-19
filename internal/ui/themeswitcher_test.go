@@ -11,7 +11,7 @@ func TestThemeSwitcherDoneMsgHandledBeforeActiveGuard(t *testing.T) {
 	_, b := newTestBoard(t)
 
 	b.themeSwitcherActive = true
-	b.themeSwitcher = NewThemeSwitcher(b.currentThemeName, b.width, b.height)
+	b.themeSwitcher = NewThemeSwitcher(testStyles, b.currentThemeName, b.width, b.height)
 
 	updated, cmd := b.Update(themeSwitcherDoneMsg{themeName: "dracula"})
 	if updated.themeSwitcherActive {
@@ -29,7 +29,7 @@ func TestThemeSwitcherCancelDoesNotChangeCurrentTheme(t *testing.T) {
 	_, b := newTestBoard(t)
 	b.currentThemeName = "tokyo-night"
 	b.themeSwitcherActive = true
-	b.themeSwitcher = NewThemeSwitcher(b.currentThemeName, b.width, b.height)
+	b.themeSwitcher = NewThemeSwitcher(testStyles, b.currentThemeName, b.width, b.height)
 
 	updated, _ := b.Update(themeSwitcherDoneMsg{cancelled: true})
 	if updated.themeSwitcherActive {
@@ -44,7 +44,7 @@ func TestThemeSwitcherCancelDoesNotChangeCurrentTheme(t *testing.T) {
 // opens with its cursor on whatever theme is already active, not always
 // at index 0 — important for a 45-item list.
 func TestNewThemeSwitcherSeedsCursorAtCurrentTheme(t *testing.T) {
-	s := NewThemeSwitcher("dracula", 80, 24)
+	s := NewThemeSwitcher(testStyles, "dracula", 80, 24)
 	if s.cursor >= len(s.names) || s.names[s.cursor] != "dracula" {
 		t.Fatalf("cursor = %d (name %q), want it seeded at 'dracula'", s.cursor, s.selectedName())
 	}

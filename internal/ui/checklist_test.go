@@ -3,8 +3,6 @@ package ui
 import (
 	"strings"
 	"testing"
-
-	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 // TestChecklistActionMsgHandledBeforeActiveGuard guards a variant of the
@@ -19,7 +17,7 @@ func TestChecklistActionMsgHandledBeforeActiveGuard(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionChecklist
 	b.formActive = true
 
@@ -65,7 +63,7 @@ func TestChecklistClosedMsgIsANoOpWhenEmbedded(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionChecklist
 	b.formActive = true
 
@@ -86,7 +84,7 @@ func TestChecklistToggleAndDeleteFlow(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionChecklist
 	b.formActive = true
 
@@ -137,16 +135,16 @@ func TestChecklistToggleAndDeleteFlow(t *testing.T) {
 // reference built the same way viewBare itself does, so it holds regardless
 // of whether the test environment's terminal profile emits real ANSI or not.
 func TestChecklistViewBareHeader(t *testing.T) {
-	c := NewChecklist(1, nil, 80, 24)
+	c := NewChecklist(testStyles, 1, nil, 80, 24)
 
 	unfocused := c.viewBare(false)
 	headerLine, _, _ := strings.Cut(unfocused, "\n")
-	if headerLine != styles.FormLabelStyle.Render("Checklist") {
+	if headerLine != testStyles.FormLabelStyle.Render("Checklist") {
 		t.Fatalf("header line = %q, want just 'Checklist' (no card-title suffix)", headerLine)
 	}
 
 	focused := c.viewBare(true)
-	if !strings.HasPrefix(focused, styles.SectionActiveStyle.Render("Checklist")) {
+	if !strings.HasPrefix(focused, testStyles.SectionActiveStyle.Render("Checklist")) {
 		t.Fatalf("focused header doesn't start with the highlighted 'Checklist' label: %q", focused)
 	}
 }

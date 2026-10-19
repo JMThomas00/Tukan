@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/JMThomas00/tukan/internal/styles"
@@ -19,11 +20,13 @@ const (
 // affects only the modeNormal hint list — left/right and move-card mean
 // different things in Gantt view (panning the timeline, not lane
 // navigation), and "m" (move between lanes) has no meaning there at all.
-func RenderHelp(mode boardMode, viewMode boardViewMode, width int) string {
+// showTheme is false when the host picks the theme (Concord), so "T" does
+// nothing and isn't advertised.
+func RenderHelp(st *styles.Styles, mode boardMode, viewMode boardViewMode, width int, showTheme bool) string {
 	var parts []string
 
 	key := func(k, desc string) string {
-		return styles.HelpKeyStyle.Render(k) + " " + styles.HelpDescStyle.Render(desc)
+		return st.HelpKeyStyle.Render(k) + " " + st.HelpDescStyle.Render(desc)
 	}
 
 	switch mode {
@@ -82,6 +85,10 @@ func RenderHelp(mode boardMode, viewMode boardViewMode, width int) string {
 		}
 	}
 
-	line := strings.Join(parts, styles.HelpDescStyle.Render("  "))
-	return styles.HelpBarStyle.Width(width).Render(line)
+	if !showTheme {
+		parts = slices.DeleteFunc(parts, func(p string) bool { return p == key("T", "theme") })
+	}
+
+	line := strings.Join(parts, st.HelpDescStyle.Render("  "))
+	return st.HelpBarStyle.Width(width).Render(line)
 }

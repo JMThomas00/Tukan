@@ -20,8 +20,6 @@ import (
 	"github.com/JMThomas00/tukan/internal/concord"
 	"github.com/JMThomas00/tukan/internal/config"
 	"github.com/JMThomas00/tukan/internal/database"
-	"github.com/JMThomas00/tukan/internal/styles"
-	"github.com/JMThomas00/tukan/internal/themes"
 	"github.com/JMThomas00/tukan/internal/ui"
 )
 
@@ -30,12 +28,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("tukan: load config: %v", err)
 	}
-	theme, err := themes.GetTheme(fileCfg.Theme)
-	if err != nil {
-		theme = themes.GetDefaultTheme()
-	}
-	styles.Apply(theme)
-
 	cfg := config.Default()
 	pcfg, underConcord := plugin.ConfigFromEnv()
 	if underConcord {

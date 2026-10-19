@@ -12,7 +12,7 @@ func TestCardEventsLoadedMsgHandledBeforeActiveGuard(t *testing.T) {
 	card := addTestCard(t, db, &b)
 
 	b.cardEventsActive = true
-	b.cardEvents = NewCardEvents(card.ID, card.Title, b.width, b.height)
+	b.cardEvents = NewCardEvents(testStyles, card.ID, card.Title, b.width, b.height)
 	if !b.cardEvents.loading {
 		t.Fatal("expected the modal to start in a loading state")
 	}
@@ -46,7 +46,7 @@ func TestCardEventsComposeFlowStaysOpen(t *testing.T) {
 	card := addTestCard(t, db, &b)
 
 	b.cardEventsActive = true
-	b.cardEvents = NewCardEvents(card.ID, card.Title, b.width, b.height)
+	b.cardEvents = NewCardEvents(testStyles, card.ID, card.Title, b.width, b.height)
 	b.cardEvents.loading = false
 
 	updated, cmd := b.Update(cardEventsComposeMsg{cardID: card.ID, body: "Looks good"})
@@ -80,7 +80,7 @@ func TestCardEventsClosedMsgClosesModal(t *testing.T) {
 	card := addTestCard(t, db, &b)
 
 	b.cardEventsActive = true
-	b.cardEvents = NewCardEvents(card.ID, card.Title, b.width, b.height)
+	b.cardEvents = NewCardEvents(testStyles, card.ID, card.Title, b.width, b.height)
 
 	updated, cmd := b.Update(cardEventsClosedMsg{})
 	if updated.cardEventsActive {

@@ -42,6 +42,7 @@ type boardSwitcherDoneMsg struct {
 // BoardSwitcherModel is the board-switching modal: browse, select, create,
 // rename, and delete boards.
 type BoardSwitcherModel struct {
+	st        *styles.Styles // the owning board's, shared
 	boards    []models.Board
 	cursor    int
 	mode      switcherSubMode
@@ -52,7 +53,7 @@ type BoardSwitcherModel struct {
 }
 
 // NewBoardSwitcher creates a switcher pre-focused on the currently active board.
-func NewBoardSwitcher(boards []models.Board, currentID int64, w, h int) BoardSwitcherModel {
+func NewBoardSwitcher(st *styles.Styles, boards []models.Board, currentID int64, w, h int) BoardSwitcherModel {
 	cursor := 0
 	for i, b := range boards {
 		if b.ID == currentID {
@@ -66,6 +67,7 @@ func NewBoardSwitcher(boards []models.Board, currentID int64, w, h int) BoardSwi
 	ni.CharLimit = 60
 
 	return BoardSwitcherModel{
+		st:        st,
 		boards:    boards,
 		cursor:    cursor,
 		mode:      switcherBrowsing,
@@ -190,7 +192,7 @@ func (s BoardSwitcherModel) updateBrowsing(msg tea.KeyMsg, km KeyMap) (BoardSwit
 
 func (s BoardSwitcherModel) View() string {
 	var b strings.Builder
-	b.WriteString(styles.FormLabelStyle.Render("Boards") + "\n\n")
+	b.WriteString(s.st.FormLabelStyle.Render("Boards") + "\n\n")
 
 	switch s.mode {
 	case switcherNaming:
@@ -198,9 +200,9 @@ func (s BoardSwitcherModel) View() string {
 		if s.renaming {
 			label = "Rename board"
 		}
-		b.WriteString(styles.FormLabelStyle.Render(label) + "\n")
+		b.WriteString(s.st.FormLabelStyle.Render(label) + "\n")
 		b.WriteString(s.nameInput.View() + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("enter save  esc cancel"))
+		b.WriteString(s.st.HelpDescStyle.Render("enter save  esc cancel"))
 
 	case switcherConfirmDelete:
 		name := ""
@@ -208,23 +210,23 @@ func (s BoardSwitcherModel) View() string {
 			name = s.boards[s.cursor].Name
 		}
 		warning := fmt.Sprintf("Delete board %q? This deletes all its lanes and cards.", name)
-		b.WriteString(styles.FormErrorStyle.Render(warning) + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("y confirm  esc cancel"))
+		b.WriteString(s.st.FormErrorStyle.Render(warning) + "\n\n")
+		b.WriteString(s.st.HelpDescStyle.Render("y confirm  esc cancel"))
 
 	default:
 		for i, board := range s.boards {
 			line := "  " + board.Name
 			if i == s.cursor {
-				line = styles.HelpKeyStyle.Render("› " + board.Name)
+				line = s.st.HelpKeyStyle.Render("› " + board.Name)
 			} else {
-				line = styles.FormLabelStyle.Render(line)
+				line = s.st.FormLabelStyle.Render(line)
 			}
 			b.WriteString(line + "\n")
 		}
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ select  enter open  n new  r rename  d delete  esc close"))
+		b.WriteString("\n" + s.st.HelpDescStyle.Render("↑/↓ select  enter open  n new  r rename  d delete  esc close"))
 	}
 
-	box := styles.ModalBoxStyle.Width(50).Render(b.String())
+	box := s.st.ModalBoxStyle.Width(50).Render(b.String())
 	if s.width > 0 && s.height > 0 {
 		return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, box)
 	}

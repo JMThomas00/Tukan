@@ -46,6 +46,7 @@ type checklistClosedMsg struct{}
 // label picker's batch-on-close), so the modal renders whatever
 // BoardModel's checklists map currently holds for this card.
 type ChecklistModel struct {
+	st      *styles.Styles // the owning board's, shared
 	cardID  int64
 	items   []models.ChecklistItem
 	cursor  int
@@ -56,12 +57,13 @@ type ChecklistModel struct {
 }
 
 // NewChecklist creates a checklist modal for a card.
-func NewChecklist(cardID int64, items []models.ChecklistItem, w, h int) ChecklistModel {
+func NewChecklist(st *styles.Styles, cardID int64, items []models.ChecklistItem, w, h int) ChecklistModel {
 	ni := textinput.New()
 	ni.Placeholder = "Checklist item"
 	ni.CharLimit = 120
 
 	return ChecklistModel{
+		st:      st,
 		cardID:  cardID,
 		items:   items,
 		newItem: ni,
@@ -157,9 +159,9 @@ func (c ChecklistModel) updateAdding(msg tea.KeyMsg, km KeyMap) (ChecklistModel,
 func (c ChecklistModel) viewBare(focused bool) string {
 	var b strings.Builder
 
-	headerStyle := styles.FormLabelStyle
+	headerStyle := c.st.FormLabelStyle
 	if focused {
-		headerStyle = styles.SectionActiveStyle
+		headerStyle = c.st.SectionActiveStyle
 	}
 	b.WriteString(headerStyle.Render("Checklist") + "\n\n")
 
@@ -170,9 +172,9 @@ func (c ChecklistModel) viewBare(focused bool) string {
 				done++
 			}
 		}
-		b.WriteString(styles.HelpDescStyle.Render(fmt.Sprintf("%d/%d done", done, len(c.items))) + "\n\n")
+		b.WriteString(c.st.HelpDescStyle.Render(fmt.Sprintf("%d/%d done", done, len(c.items))) + "\n\n")
 	} else {
-		b.WriteString(styles.CardNoteStyle.Render("No items yet — press a to add one") + "\n")
+		b.WriteString(c.st.CardNoteStyle.Render("No items yet — press a to add one") + "\n")
 	}
 
 	for i, it := range c.items {
@@ -182,26 +184,26 @@ func (c ChecklistModel) viewBare(focused bool) string {
 		}
 		line := fmt.Sprintf("%s %s", mark, it.Text)
 		if i == c.cursor {
-			line = styles.HelpKeyStyle.Render("› " + line)
+			line = c.st.HelpKeyStyle.Render("› " + line)
 		} else {
-			line = styles.FormLabelStyle.Render("  " + line)
+			line = c.st.FormLabelStyle.Render("  " + line)
 		}
 		b.WriteString(line + "\n")
 	}
 
 	if c.mode == checklistAddingItem {
-		b.WriteString("\n" + styles.FormLabelStyle.Render("New item") + "\n")
+		b.WriteString("\n" + c.st.FormLabelStyle.Render("New item") + "\n")
 		b.WriteString(c.newItem.View() + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("enter add  esc cancel"))
+		b.WriteString(c.st.HelpDescStyle.Render("enter add  esc cancel"))
 	} else {
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ select  space toggle  a add  d delete  esc close"))
+		b.WriteString("\n" + c.st.HelpDescStyle.Render("↑/↓ select  space toggle  a add  d delete  esc close"))
 	}
 
 	return b.String()
 }
 
 func (c ChecklistModel) View() string {
-	box := styles.ModalBoxStyle.Width(50).Render(c.viewBare(true))
+	box := c.st.ModalBoxStyle.Width(50).Render(c.viewBare(true))
 	if c.width > 0 && c.height > 0 {
 		return lipgloss.Place(c.width, c.height, lipgloss.Center, lipgloss.Center, box)
 	}

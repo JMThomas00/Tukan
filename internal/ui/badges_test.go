@@ -9,13 +9,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/JMThomas00/tukan/internal/models"
-	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 const testBg = "#2d3f76" // an arbitrary "card background" for these tests, e.g. ColorHighlight
 
 func TestRenderCardBadgesEmpty(t *testing.T) {
-	out := renderCardBadges(models.Card{}, nil, nil, 20, testBg)
+	out := renderCardBadges(testStyles, models.Card{}, nil, nil, 20, testBg)
 	// Unlike before the background-bleed fix, an empty badge line is now
 	// genuinely an empty string — renderCard's own "\n" + this concatenation
 	// is what reserves the line's height, not padding done in here. See
@@ -30,7 +29,7 @@ func TestRenderCardBadgesWithLabels(t *testing.T) {
 		{ID: 1, Name: "Bug", Color: "#f7768e"},
 		{ID: 2, Name: "UI", Color: "#7aa2f7"},
 	}
-	out := renderCardBadges(models.Card{}, labels, nil, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{}, labels, nil, 40, testBg)
 	if strings.Count(out, "●") != 2 {
 		t.Fatalf("expected 2 chip markers for 2 labels within budget, got: %q", out)
 	}
@@ -44,7 +43,7 @@ func TestRenderCardBadgesTruncatesExcessLabels(t *testing.T) {
 		{ID: 4, Name: "D", Color: "#e0af68"},
 	}
 	// width/2 = 5 chips would fit numerically, so use a narrow width to force truncation.
-	out := renderCardBadges(models.Card{}, labels, nil, 4, testBg)
+	out := renderCardBadges(testStyles, models.Card{}, labels, nil, 4, testBg)
 	if !strings.Contains(out, "+") {
 		t.Fatalf("expected a '+N' truncation marker when labels exceed the chip budget, got: %q", out)
 	}
@@ -52,7 +51,7 @@ func TestRenderCardBadgesTruncatesExcessLabels(t *testing.T) {
 
 func TestRenderCardBadgesDueDate(t *testing.T) {
 	future := time.Now().UTC().AddDate(0, 0, 7)
-	out := renderCardBadges(models.Card{DueDate: &future}, nil, nil, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{DueDate: &future}, nil, nil, 40, testBg)
 	if !strings.Contains(out, "due "+future.Format(dueDateLayout)) {
 		t.Fatalf("expected due-date text in badge line, got: %q", out)
 	}
@@ -60,7 +59,7 @@ func TestRenderCardBadgesDueDate(t *testing.T) {
 
 func TestRenderCardBadgesOverdue(t *testing.T) {
 	past := time.Now().UTC().AddDate(0, 0, -7)
-	out := renderCardBadges(models.Card{DueDate: &past}, nil, nil, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{DueDate: &past}, nil, nil, 40, testBg)
 	if !strings.Contains(out, "due "+past.Format(dueDateLayout)) {
 		t.Fatalf("expected due-date text in badge line, got: %q", out)
 	}
@@ -69,7 +68,7 @@ func TestRenderCardBadgesOverdue(t *testing.T) {
 func TestRenderCardBadgesLabelsAndDueDateTogether(t *testing.T) {
 	labels := []models.Label{{ID: 1, Name: "Bug", Color: "#f7768e"}}
 	due := time.Now().UTC().AddDate(0, 0, 1)
-	out := renderCardBadges(models.Card{DueDate: &due}, labels, nil, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{DueDate: &due}, labels, nil, 40, testBg)
 	if !strings.Contains(out, "●") {
 		t.Fatalf("expected a label chip, got: %q", out)
 	}
@@ -84,14 +83,14 @@ func TestRenderCardBadgesChecklistCounter(t *testing.T) {
 		{ID: 2, Text: "b", Done: true},
 		{ID: 3, Text: "c", Done: false},
 	}
-	out := renderCardBadges(models.Card{}, nil, items, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{}, nil, items, 40, testBg)
 	if !strings.Contains(out, "[2/3]") {
 		t.Fatalf("expected checklist counter [2/3], got: %q", out)
 	}
 }
 
 func TestRenderCardBadgesEmptyChecklistShowsNoCounter(t *testing.T) {
-	out := renderCardBadges(models.Card{}, nil, nil, 40, testBg)
+	out := renderCardBadges(testStyles, models.Card{}, nil, nil, 40, testBg)
 	if strings.Contains(out, "[") {
 		t.Fatalf("unexpected checklist counter with no items: %q", out)
 	}
@@ -101,7 +100,7 @@ func TestRenderCardBadgesAllThreeTogether(t *testing.T) {
 	labels := []models.Label{{ID: 1, Name: "Bug", Color: "#f7768e"}}
 	due := time.Now().UTC().AddDate(0, 0, 1)
 	items := []models.ChecklistItem{{ID: 1, Text: "a", Done: true}, {ID: 2, Text: "b"}}
-	out := renderCardBadges(models.Card{DueDate: &due}, labels, items, 60, testBg)
+	out := renderCardBadges(testStyles, models.Card{DueDate: &due}, labels, items, 60, testBg)
 	if !strings.Contains(out, "●") {
 		t.Fatalf("expected a label chip, got: %q", out)
 	}
@@ -130,8 +129,8 @@ func TestRenderCardBadgesLeafStylesUseCardBackground(t *testing.T) {
 
 	t.Run("due date", func(t *testing.T) {
 		due := time.Now().UTC().AddDate(0, 0, 1)
-		out := renderCardBadges(models.Card{DueDate: &due}, nil, nil, 40, testBg)
-		want := styles.CardDueDateStyle.Background(bgColor).Render("due " + due.Format(dueDateLayout))
+		out := renderCardBadges(testStyles, models.Card{DueDate: &due}, nil, nil, 40, testBg)
+		want := testStyles.CardDueDateStyle.Background(bgColor).Render("due " + due.Format(dueDateLayout))
 		if out != want {
 			t.Fatalf("due-date segment = %q, want %q", out, want)
 		}
@@ -139,8 +138,8 @@ func TestRenderCardBadgesLeafStylesUseCardBackground(t *testing.T) {
 
 	t.Run("overdue", func(t *testing.T) {
 		past := time.Now().UTC().AddDate(0, 0, -1)
-		out := renderCardBadges(models.Card{DueDate: &past}, nil, nil, 40, testBg)
-		want := styles.CardOverdueStyle.Background(bgColor).Render("due " + past.Format(dueDateLayout))
+		out := renderCardBadges(testStyles, models.Card{DueDate: &past}, nil, nil, 40, testBg)
+		want := testStyles.CardOverdueStyle.Background(bgColor).Render("due " + past.Format(dueDateLayout))
 		if out != want {
 			t.Fatalf("overdue segment = %q, want %q", out, want)
 		}
@@ -148,8 +147,8 @@ func TestRenderCardBadgesLeafStylesUseCardBackground(t *testing.T) {
 
 	t.Run("checklist counter", func(t *testing.T) {
 		items := []models.ChecklistItem{{ID: 1, Text: "a", Done: true}, {ID: 2, Text: "b"}}
-		out := renderCardBadges(models.Card{}, nil, items, 40, testBg)
-		want := styles.CardDueDateStyle.Background(bgColor).Render("[1/2]")
+		out := renderCardBadges(testStyles, models.Card{}, nil, items, 40, testBg)
+		want := testStyles.CardDueDateStyle.Background(bgColor).Render("[1/2]")
 		if out != want {
 			t.Fatalf("checklist segment = %q, want %q", out, want)
 		}
@@ -157,7 +156,7 @@ func TestRenderCardBadgesLeafStylesUseCardBackground(t *testing.T) {
 
 	t.Run("label chip", func(t *testing.T) {
 		labels := []models.Label{{ID: 1, Name: "Bug", Color: "#f7768e"}}
-		out := renderCardBadges(models.Card{}, labels, nil, 40, testBg)
+		out := renderCardBadges(testStyles, models.Card{}, labels, nil, 40, testBg)
 		want := lipgloss.NewStyle().Foreground(lipgloss.Color("#f7768e")).Background(bgColor).Render("●")
 		if out != want {
 			t.Fatalf("label chip segment = %q, want %q", out, want)
@@ -174,10 +173,10 @@ func TestRenderCardBadgesLeafStylesUseCardBackground(t *testing.T) {
 	t.Run("separator between two segments carries the card background too", func(t *testing.T) {
 		labels := []models.Label{{ID: 1, Name: "Bug", Color: "#f7768e"}}
 		items := []models.ChecklistItem{{ID: 1, Text: "a", Done: true}, {ID: 2, Text: "b"}}
-		out := renderCardBadges(models.Card{}, labels, items, 40, testBg)
+		out := renderCardBadges(testStyles, models.Card{}, labels, items, 40, testBg)
 
 		chip := lipgloss.NewStyle().Foreground(lipgloss.Color("#f7768e")).Background(bgColor).Render("●")
-		counter := styles.CardDueDateStyle.Background(bgColor).Render("[1/2]")
+		counter := testStyles.CardDueDateStyle.Background(bgColor).Render("[1/2]")
 		sep := lipgloss.NewStyle().Background(bgColor).Render("  ")
 		want := chip + sep + counter
 		if out != want {
@@ -195,10 +194,10 @@ func TestRenderCardAssigneesUsesBackgroundedSeparator(t *testing.T) {
 	bgColor := lipgloss.Color(testBg)
 	assignees := []models.Assignee{{ID: 1, Name: "Jordan"}, {ID: 2, Name: "Claude"}}
 
-	out := renderCardAssignees(assignees, false, false, testBg)
+	out := renderCardAssignees(testStyles, assignees, false, false, testBg)
 
-	name1 := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.AssigneeColor(1))).Background(bgColor).Render("@Jordan")
-	name2 := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.AssigneeColor(2))).Background(bgColor).Render("@Claude")
+	name1 := lipgloss.NewStyle().Foreground(lipgloss.Color(testStyles.AssigneeColor(1))).Background(bgColor).Render("@Jordan")
+	name2 := lipgloss.NewStyle().Foreground(lipgloss.Color(testStyles.AssigneeColor(2))).Background(bgColor).Render("@Claude")
 	sep := lipgloss.NewStyle().Background(bgColor).Render(" ")
 	want := name1 + sep + name2
 	if out != want {
@@ -212,10 +211,10 @@ func TestRenderCardAssigneesUsesBackgroundedSeparator(t *testing.T) {
 // concern as renderCardBadges' segment separators.
 func TestRenderCardTitleRowRightAlignsTicketNumber(t *testing.T) {
 	bgColor := lipgloss.Color(testBg)
-	out := renderCardTitleRow("Fix login", 42, 20, testBg)
+	out := renderCardTitleRow(testStyles, "Fix login", 42, 20, testBg)
 
-	titleSeg := styles.CardTitleStyle.Background(bgColor).Render("Fix login")
-	ticketSeg := styles.CardTicketStyle.Background(bgColor).Render("#42")
+	titleSeg := testStyles.CardTitleStyle.Background(bgColor).Render("Fix login")
+	ticketSeg := testStyles.CardTicketStyle.Background(bgColor).Render("#42")
 	gap := 20 - lipgloss.Width("Fix login") - lipgloss.Width("#42")
 	spacer := lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", gap))
 	want := titleSeg + spacer + ticketSeg
@@ -234,7 +233,7 @@ func TestRenderCardTitleRowRightAlignsTicketNumber(t *testing.T) {
 // width outright).
 func TestRenderCardTitleRowTruncatesLongTitles(t *testing.T) {
 	longTitle := strings.Repeat("x", 50)
-	out := renderCardTitleRow(longTitle, 7, 20, testBg)
+	out := renderCardTitleRow(testStyles, longTitle, 7, 20, testBg)
 
 	if lipgloss.Width(out) != 20 {
 		t.Fatalf("rendered title row width = %d, want exactly 20 even with a title far longer than the card", lipgloss.Width(out))
@@ -260,15 +259,15 @@ func TestNoteStyleForCard(t *testing.T) {
 		focused, isMoving bool
 		want              lipgloss.Style
 	}{
-		{"unfocused", false, false, styles.CardNoteStyle},
-		{"focused", true, false, styles.CardNoteFocusedStyle},
-		{"focused but moving keeps the default background", true, true, styles.CardNoteStyle},
-		{"unfocused and moving", false, true, styles.CardNoteStyle},
+		{"unfocused", false, false, testStyles.CardNoteStyle},
+		{"focused", true, false, testStyles.CardNoteFocusedStyle},
+		{"focused but moving keeps the default background", true, true, testStyles.CardNoteStyle},
+		{"unfocused and moving", false, true, testStyles.CardNoteStyle},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := noteStyleForCard(c.focused, c.isMoving); !reflect.DeepEqual(got, c.want) {
-				t.Fatalf("noteStyleForCard(%v, %v) = %+v, want %+v", c.focused, c.isMoving, got, c.want)
+			if got := noteStyleForCard(testStyles, c.focused, c.isMoving); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("noteStyleForCard(testStyles, %v, %v) = %+v, want %+v", c.focused, c.isMoving, got, c.want)
 			}
 		})
 	}

@@ -2,7 +2,8 @@
 // plugin SDK: each channel of Tukan's kind is mapped to one board, and
 // everyone viewing the channel gets their own BoardModel (own cursor, own
 // open form), all over the same database. When one viewer changes the
-// board, the others reload and see it at once.
+// board, the others reload and see it at once. Each viewer's board is drawn
+// in their own Concord theme.
 package concord
 
 import (
@@ -22,14 +23,16 @@ import (
 
 	"github.com/JMThomas00/tukan/internal/database"
 	"github.com/JMThomas00/tukan/internal/models"
+	"github.com/JMThomas00/tukan/internal/styles"
+	"github.com/JMThomas00/tukan/internal/themes"
 	"github.com/JMThomas00/tukan/internal/ui"
 )
 
 // Server maps channels to boards and hosts a board per viewer.
 type Server struct {
-	db        *database.DB
-	themeName string
-	host      *pane.Host
+	db    *database.DB
+	theme *themes.Theme // for viewers whose client sends no theme, and any color it leaves out
+	host  *pane.Host
 
 	mu     sync.Mutex
 	boards map[uuid.UUID]int64 // channel → board, as far as this process knows
@@ -39,9 +42,14 @@ type Server struct {
 	records map[uuid.UUID]*memberRecord // cards created and finished, per member (records.go)
 }
 
-// New builds a Server over db; themeName is Tukan's theme for every viewer.
+// New builds a Server over db. Viewers see their own Concord theme;
+// themeName is only the fallback for colors their client doesn't send.
 func New(db *database.DB, themeName string) *Server {
-	s := &Server{db: db, themeName: themeName, boards: map[uuid.UUID]int64{}, pending: map[uuid.UUID]*pendingNotice{}}
+	theme, err := themes.GetTheme(themeName)
+	if err != nil {
+		theme = themes.GetDefaultTheme()
+	}
+	s := &Server{db: db, theme: theme, boards: map[uuid.UUID]int64{}, pending: map[uuid.UUID]*pendingNotice{}}
 	s.host = pane.NewHost(s.newModel)
 	return s
 }
@@ -102,12 +110,33 @@ func (s *Server) newModel(v *pane.Viewer) tea.Model {
 	if err != nil {
 		return message("This board isn't set up yet. Try again in a moment.")
 	}
-	b, err := ui.NewBoardForID(s.db, boardID, v.Width, v.Height, s.themeName)
+	b, err := ui.NewBoardForID(s.db, boardID, v.Width, v.Height, s.stylesFor(v.Theme))
 	if err != nil {
 		log.Printf("tukan: open board %d for %s: %v", boardID, v.Name, err)
 		return message("Couldn't open this board.")
 	}
-	return &boardModel{board: b, viewer: v.ID, channel: v.ChannelID, changed: s.changed}
+	return &boardModel{board: b, viewer: v.ID, channel: v.ChannelID, changed: s.changed,
+		v: v, theme: v.Theme, stylesFor: s.stylesFor}
+}
+
+// stylesFor builds a board's styles from a viewer's Concord theme. Concord
+// sends the same 12 named colors Tukan's themes use; any it leaves out (or
+// all of them, from a client that sends no theme) come from s.theme.
+func (s *Server) stylesFor(pt *wire.PaneTheme) *styles.Styles {
+	t := *s.theme
+	if pt != nil {
+		c := &t.Colors
+		for name, field := range map[string]*string{
+			"background": &c.Background, "current_line": &c.CurrentLine, "selection": &c.Selection,
+			"foreground": &c.Foreground, "comment": &c.Comment, "red": &c.Red, "orange": &c.Orange,
+			"yellow": &c.Yellow, "green": &c.Green, "cyan": &c.Cyan, "purple": &c.Purple, "pink": &c.Pink,
+		} {
+			if v := pt.Palette[name]; v != "" {
+				*field = v
+			}
+		}
+	}
+	return styles.New(&t)
 }
 
 // changed is called when a viewer's action changed channelID's board: the
@@ -152,6 +181,10 @@ type boardModel struct {
 	viewer  uuid.UUID
 	channel uuid.UUID
 	changed func(channel, by uuid.UUID, before, after ui.ContentSnapshot)
+
+	v         *pane.Viewer
+	theme     *wire.PaneTheme // the theme the board is drawn in
+	stylesFor func(*wire.PaneTheme) *styles.Styles
 }
 
 func (m *boardModel) Init() tea.Cmd { return nil }
@@ -159,6 +192,12 @@ func (m *boardModel) Init() tea.Cmd { return nil }
 func (m *boardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		// The host updates v.Theme just before a resize when the viewer
+		// switches Concord theme.
+		if m.v.Theme != m.theme {
+			m.theme = m.v.Theme
+			m.board.SetStyles(m.stylesFor(m.theme))
+		}
 		m.board.SetSize(msg.Width, msg.Height)
 		return m, nil
 	case reloadMsg:

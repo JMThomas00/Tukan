@@ -17,7 +17,7 @@ func TestCardFormViewDoesNotPanicAcrossSizes(t *testing.T) {
 	labels := []models.Label{{ID: 1, Name: "Bug", Color: "#f7768e"}}
 	sizes := [][2]int{{0, 0}, {1, 1}, {40, 10}, {80, 24}, {200, 60}}
 	for _, s := range sizes {
-		f := NewCardForm(1, nil, labels, s[0], s[1])
+		f := NewCardForm(testStyles, 1, nil, labels, s[0], s[1])
 		_ = f.View() // must not panic
 		f.err = "Title is required"
 		_ = f.View() // must not panic with the error block present either
@@ -33,7 +33,7 @@ func TestCardFormViewDoesNotPanicAcrossSizes(t *testing.T) {
 // TestCardFormSectionCyclingSkipsChecklistWhileCreating for the create-mode
 // behavior this would otherwise mask.
 func TestCardFormSectionCyclingWraps(t *testing.T) {
-	f := EditCardForm(models.Card{ID: 1, LaneID: 1}, nil, nil, nil, nil, nil, 80, 24)
+	f := EditCardForm(testStyles, models.Card{ID: 1, LaneID: 1}, nil, nil, nil, nil, nil, 80, 24)
 
 	for _, want := range []int{sectionStartDate, sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionChecklist, sectionTitle} {
 		f = f.advanceSection(1)
@@ -58,7 +58,7 @@ func TestCardFormSectionCyclingWraps(t *testing.T) {
 // while creating; it becomes reachable again once the card is saved and
 // reopened via EditCardForm (see TestCardFormSectionCyclingWraps).
 func TestCardFormSectionCyclingSkipsChecklistWhileCreating(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 
 	for _, want := range []int{sectionStartDate, sectionDueDate, sectionNote, sectionAssignees, sectionLabels, sectionTitle} {
 		f = f.advanceSection(1)
@@ -78,7 +78,7 @@ func TestCardFormSectionCyclingSkipsChecklistWhileCreating(t *testing.T) {
 // TestCardFormEscInAssigneeSubModeBacksOutOneLevel mirrors the label case
 // for the embedded assignee picker's own create-assignee sub-mode.
 func TestCardFormEscInAssigneeSubModeBacksOutOneLevel(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.section = sectionAssignees
 	f.assignees.mode = assigneePickerCreatingAssignee
 
@@ -95,7 +95,7 @@ func TestCardFormEscInAssigneeSubModeBacksOutOneLevel(t *testing.T) {
 // embedded picker's own create-label sub-mode is open is forwarded down to
 // back out of that sub-mode, not intercepted to close the whole editor.
 func TestCardFormEscInLabelSubModeBacksOutOneLevel(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.section = sectionLabels
 	f.labels.mode = labelPickerCreatingLabel
 
@@ -111,7 +111,7 @@ func TestCardFormEscInLabelSubModeBacksOutOneLevel(t *testing.T) {
 // TestCardFormEscInChecklistSubModeBacksOutOneLevel mirrors the label case
 // for the embedded checklist's own add-item sub-mode.
 func TestCardFormEscInChecklistSubModeBacksOutOneLevel(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.section = sectionChecklist
 	f.checklist.mode = checklistAddingItem
 
@@ -127,7 +127,7 @@ func TestCardFormEscInChecklistSubModeBacksOutOneLevel(t *testing.T) {
 // TestCardFormEscWithNoSubModeClosesEditor confirms esc closes the whole
 // editor when no section has an open sub-mode — the common case.
 func TestCardFormEscWithNoSubModeClosesEditor(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	// sectionTitle by default — no sub-mode concept there at all.
 
 	_, cmd := f.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -149,7 +149,7 @@ func TestCardFormEscWithNoSubModeClosesEditor(t *testing.T) {
 // the picker's own browsing-mode esc handling (which would otherwise emit
 // its own now-unreachable labelPickerDoneMsg{cancelled:true}).
 func TestCardFormEscOnLabelsSectionWithoutSubModeClosesEditor(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.section = sectionLabels // browsing mode (the zero value), not creating
 
 	_, cmd := f.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -173,7 +173,7 @@ func TestCardFormEscOnLabelsSectionWithoutSubModeClosesEditor(t *testing.T) {
 func TestCardFormSubmitProducesCardAssigneeIDsAndLabelIDs(t *testing.T) {
 	jordan := models.Assignee{ID: 7, Name: "jordan"}
 	bug := models.Label{ID: 42, Name: "Bug", Color: "#f7768e"}
-	f := NewCardForm(1, []models.Assignee{jordan}, []models.Label{bug}, 80, 24)
+	f := NewCardForm(testStyles, 1, []models.Assignee{jordan}, []models.Label{bug}, 80, 24)
 	f.title.SetValue("Fix login")
 
 	// Toggle the one available assignee.
@@ -216,7 +216,7 @@ func TestCardFormSubmitProducesCardAssigneeIDsAndLabelIDs(t *testing.T) {
 // now that they're a multi-select registry pick rather than a required
 // free-text field — only the title is still required.
 func TestCardFormSubmitWithNoAssigneeSucceeds(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.title.SetValue("Fix login")
 
 	_, cmd := f.Update(tea.KeyMsg{Type: tea.KeyCtrlS})
@@ -235,7 +235,7 @@ func TestCardFormSubmitWithNoAssigneeSucceeds(t *testing.T) {
 // TestCardFormSubmitWithStartAndDueDateSucceeds confirms a valid start date
 // before the due date is accepted and carried onto the saved card.
 func TestCardFormSubmitWithStartAndDueDateSucceeds(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.title.SetValue("Fix login")
 	f.startDate.SetValue("2026-08-10")
 	f.dueDate.SetValue("2026-08-20")
@@ -264,7 +264,7 @@ func TestCardFormSubmitWithStartAndDueDateSucceeds(t *testing.T) {
 // invalid-date-format validation's early-return-with-error shape) rather
 // than silently accepting a nonsensical date range.
 func TestCardFormSubmitRejectsStartDateAfterDueDate(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.title.SetValue("Fix login")
 	f.startDate.SetValue("2026-08-20")
 	f.dueDate.SetValue("2026-08-10")
@@ -281,7 +281,7 @@ func TestCardFormSubmitRejectsStartDateAfterDueDate(t *testing.T) {
 // TestCardFormSubmitWithInvalidStartDateFails mirrors the existing
 // invalid-due-date-format test for the new start date field.
 func TestCardFormSubmitWithInvalidStartDateFails(t *testing.T) {
-	f := NewCardForm(1, nil, nil, 80, 24)
+	f := NewCardForm(testStyles, 1, nil, nil, 80, 24)
 	f.title.SetValue("Fix login")
 	f.startDate.SetValue("not-a-date")
 
@@ -317,7 +317,7 @@ func TestCreateCardWithAssigneesAndLabelsEndToEnd(t *testing.T) {
 	}
 	b.boardLabels = []models.Label{bug}
 
-	b.form = NewCardForm(b.lanes[0].ID, b.allAssignees, b.boardLabels, b.width, b.height)
+	b.form = NewCardForm(testStyles, b.lanes[0].ID, b.allAssignees, b.boardLabels, b.width, b.height)
 	b.form.title.SetValue("New card")
 	b.form.section = sectionAssignees
 	b.form.assignees, _ = b.form.assignees.Update(tea.KeyMsg{Type: tea.KeySpace})

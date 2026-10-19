@@ -177,7 +177,7 @@ Tukan follows the [Elm Architecture](https://guide.elm-lang.org/architecture/) (
 - **`App`** is the root model. It holds a `SplashModel` and a `BoardModel` and routes messages between them. During the splash phase, board messages (like the initial DB load result) are still delivered to the board so data is ready the moment the splash ends.
 - **`BoardModel`** manages all board state: lanes, cards, cursor position, scroll offsets, the current interaction mode, and the embedded `CardFormModel`. All database operations run as asynchronous `tea.Cmd` goroutines and never block the UI.
 - **`CardFormModel`** is a modal overlay rendered with `lipgloss.Place` centered over the board. It supports three fields with `Tab`/`Shift+Tab` cycling and `Ctrl+S` to submit.
-- **Styles** are pre-computed once in `init()` in `internal/styles/styles.go` and never allocated during rendering.
+- **Styles** are pre-computed per board (`styles.New` in `internal/styles/styles.go`) and never allocated during rendering. Each board owns its own set, so in Concord every viewer's board follows their own Concord theme, and a theme change never repaints anyone else's.
 
 ## Future Directions
 
@@ -186,7 +186,6 @@ The architecture is designed to accommodate these expansions without significant
 - **Additional lanes** — The board already supports horizontal viewport scrolling (`laneVPOff`) for when lanes overflow the terminal width.
 - **Vertical swim lanes** — A `vertical_lane_id` column can be added to the cards table to group rows (e.g., by team or priority).
 - **Card archival** — An `is_archived` flag can be added to hide completed work without deleting it.
-- **Custom themes** — All colors are defined as named constants in `styles/styles.go`; swapping the palette changes the entire UI.
 - **Due dates and priorities** — Additional card fields can be added to the schema and form without restructuring the existing code.
 
 ## License

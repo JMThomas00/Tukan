@@ -46,6 +46,7 @@ type labelPickerDoneMsg struct {
 // LabelPickerModel lets the user toggle which of a board's labels are
 // assigned to a card, and manage the board's label palette (create/delete).
 type LabelPickerModel struct {
+	st        *styles.Styles // the owning board's, shared
 	cardID    int64
 	all       []models.Label
 	selected  map[int64]bool
@@ -58,7 +59,7 @@ type LabelPickerModel struct {
 }
 
 // NewLabelPicker creates a picker for a card, pre-selecting its current labels.
-func NewLabelPicker(cardID int64, all []models.Label, current []models.Label, w, h int) LabelPickerModel {
+func NewLabelPicker(st *styles.Styles, cardID int64, all []models.Label, current []models.Label, w, h int) LabelPickerModel {
 	selected := make(map[int64]bool, len(current))
 	for _, l := range current {
 		selected[l.ID] = true
@@ -69,6 +70,7 @@ func NewLabelPicker(cardID int64, all []models.Label, current []models.Label, w,
 	ni.CharLimit = 40
 
 	return LabelPickerModel{
+		st:        st,
 		cardID:    cardID,
 		all:       all,
 		selected:  selected,
@@ -153,11 +155,11 @@ func (p LabelPickerModel) updateCreating(msg tea.KeyMsg, km KeyMap) (LabelPicker
 		return p, nil
 
 	case msg.String() == "left":
-		p.colorIdx = (p.colorIdx - 1 + len(styles.LabelPalette)) % len(styles.LabelPalette)
+		p.colorIdx = (p.colorIdx - 1 + len(p.st.LabelPalette)) % len(p.st.LabelPalette)
 		return p, nil
 
 	case msg.String() == "right":
-		p.colorIdx = (p.colorIdx + 1) % len(styles.LabelPalette)
+		p.colorIdx = (p.colorIdx + 1) % len(p.st.LabelPalette)
 		return p, nil
 
 	case msg.String() == "enter":
@@ -165,7 +167,7 @@ func (p LabelPickerModel) updateCreating(msg tea.KeyMsg, km KeyMap) (LabelPicker
 		if name == "" {
 			return p, nil
 		}
-		color := styles.LabelPalette[p.colorIdx]
+		color := p.st.LabelPalette[p.colorIdx]
 		p.mode = labelPickerBrowsing
 		p.nameInput.Blur()
 		return p, func() tea.Msg {
@@ -200,23 +202,23 @@ func (p LabelPickerModel) selectedIDs() []int64 {
 // every other top-level modal in this codebase uses.
 func (p LabelPickerModel) viewBare(focused bool) string {
 	var b strings.Builder
-	headerStyle := styles.FormLabelStyle
+	headerStyle := p.st.FormLabelStyle
 	if focused {
-		headerStyle = styles.SectionActiveStyle
+		headerStyle = p.st.SectionActiveStyle
 	}
 	b.WriteString(headerStyle.Render("Labels") + "\n\n")
 
 	switch p.mode {
 	case labelPickerCreatingLabel:
-		b.WriteString(styles.FormLabelStyle.Render("New label name") + "\n")
+		b.WriteString(p.st.FormLabelStyle.Render("New label name") + "\n")
 		b.WriteString(p.nameInput.View() + "\n\n")
-		swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.LabelPalette[p.colorIdx])).Render("●●●")
+		swatch := lipgloss.NewStyle().Foreground(lipgloss.Color(p.st.LabelPalette[p.colorIdx])).Render("●●●")
 		b.WriteString("Color: " + swatch + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("←/→ color  enter save  esc cancel"))
+		b.WriteString(p.st.HelpDescStyle.Render("←/→ color  enter save  esc cancel"))
 
 	default:
 		if len(p.all) == 0 {
-			b.WriteString(styles.CardNoteStyle.Render("No labels yet — press n to create one") + "\n")
+			b.WriteString(p.st.CardNoteStyle.Render("No labels yet — press n to create one") + "\n")
 		}
 		for i, l := range p.all {
 			mark := "[ ]"
@@ -226,20 +228,20 @@ func (p LabelPickerModel) viewBare(focused bool) string {
 			chip := lipgloss.NewStyle().Foreground(lipgloss.Color(l.Color)).Render("●")
 			line := fmt.Sprintf("%s %s %s", mark, chip, l.Name)
 			if i == p.cursor {
-				line = styles.HelpKeyStyle.Render("› " + line)
+				line = p.st.HelpKeyStyle.Render("› " + line)
 			} else {
-				line = styles.FormLabelStyle.Render("  " + line)
+				line = p.st.FormLabelStyle.Render("  " + line)
 			}
 			b.WriteString(line + "\n")
 		}
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ select  space toggle  n new  d delete  ctrl+s save  esc cancel"))
+		b.WriteString("\n" + p.st.HelpDescStyle.Render("↑/↓ select  space toggle  n new  d delete  ctrl+s save  esc cancel"))
 	}
 
 	return b.String()
 }
 
 func (p LabelPickerModel) View() string {
-	box := styles.ModalBoxStyle.Width(50).Render(p.viewBare(true))
+	box := p.st.ModalBoxStyle.Width(50).Render(p.viewBare(true))
 	if p.width > 0 && p.height > 0 {
 		return lipgloss.Place(p.width, p.height, lipgloss.Center, lipgloss.Center, box)
 	}

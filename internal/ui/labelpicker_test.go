@@ -6,7 +6,6 @@ import (
 
 	"github.com/JMThomas00/tukan/internal/database"
 	"github.com/JMThomas00/tukan/internal/models"
-	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 // addTestCard creates a card in the board's first lane and reflects it into
@@ -32,7 +31,7 @@ func TestLabelPickerCreateMsgDoesNotCloseTheEditor(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionLabels
 	b.formActive = true
 
@@ -74,7 +73,7 @@ func TestLabelPickerDeleteMsgDoesNotCloseTheEditor(t *testing.T) {
 	}
 	b.boardLabels = []models.Label{bug}
 
-	b.form = EditCardForm(card, nil, nil, b.boardLabels, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, b.boardLabels, nil, nil, b.width, b.height)
 	b.form.section = sectionLabels
 	b.formActive = true
 
@@ -113,7 +112,7 @@ func TestLabelPickerCancelledDoneMsgIsANoOp(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionLabels
 	b.formActive = true
 
@@ -133,15 +132,15 @@ func TestLabelPickerCancelledDoneMsgIsANoOp(t *testing.T) {
 // built the same way viewBare itself does, so it holds regardless of
 // whether the test environment's terminal profile emits real ANSI or not.
 func TestLabelPickerViewBareHeaderReflectsFocus(t *testing.T) {
-	p := NewLabelPicker(1, nil, nil, 80, 24)
+	p := NewLabelPicker(testStyles, 1, nil, nil, 80, 24)
 
 	unfocused := p.viewBare(false)
-	if !strings.HasPrefix(unfocused, styles.FormLabelStyle.Render("Labels")) {
+	if !strings.HasPrefix(unfocused, testStyles.FormLabelStyle.Render("Labels")) {
 		t.Fatalf("unfocused header doesn't start with the plain 'Labels' label: %q", unfocused)
 	}
 
 	focused := p.viewBare(true)
-	if !strings.HasPrefix(focused, styles.SectionActiveStyle.Render("Labels")) {
+	if !strings.HasPrefix(focused, testStyles.SectionActiveStyle.Render("Labels")) {
 		t.Fatalf("focused header doesn't start with the highlighted 'Labels' label: %q", focused)
 	}
 }
