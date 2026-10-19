@@ -1310,9 +1310,8 @@ func bgJoin(segs []string, sep string, bg lipgloss.Color) string {
 
 // noteStyleForCard picks CardNoteStyle's muted foreground for the resting
 // state, or CardNoteFocusedStyle's full-contrast foreground whenever this
-// card is the one actually highlighted — ColorMuted and ColorHighlight are
-// both mapped from the same theme field, so staying on CardNoteStyle while
-// focused renders the note illegible against its own background. A moving
+// card is the one actually highlighted — a muted note is low-contrast
+// against the highlight background. A moving
 // card keeps the default (non-highlight) background, so it doesn't need the
 // focused variant even while "focused" in cursor terms.
 func noteStyleForCard(st *styles.Styles, focused, isMoving bool) lipgloss.Style {

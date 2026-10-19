@@ -99,7 +99,11 @@ func New(theme *themes.Theme) *Styles {
 
 	s.ColorBg = c.Background
 	s.ColorSurface = c.Background
-	s.ColorBorder = c.CurrentLine
+	// Borders and muted text are foreground on the terminal's background,
+	// so they use comment (what Concord draws its own borders in) — not
+	// current_line/selection, which are background tones and vanish on a
+	// dark terminal (e.g. Orange's #2D1A10).
+	s.ColorBorder = c.Comment
 	s.ColorAccent = c.Purple
 	s.ColorText = c.Foreground
 	s.ColorSubtext = c.Comment
@@ -107,7 +111,7 @@ func New(theme *themes.Theme) *Styles {
 	s.ColorSuccess = c.Green
 	s.ColorWarning = c.Orange
 	s.ColorInfo = c.Cyan
-	s.ColorMuted = c.Selection
+	s.ColorMuted = c.Comment
 	s.ColorHighlight = c.Selection
 	s.ColorAssignee = c.Pink
 
@@ -159,11 +163,8 @@ func New(theme *themes.Theme) *Styles {
 		Foreground(lipgloss.Color(s.ColorMuted))
 
 	// CardNoteFocusedStyle is used instead of CardNoteStyle whenever the
-	// card itself is focused: ColorMuted and ColorHighlight are both
-	// mapped from the same theme field (there's no dedicated "muted text"
-	// tone separate from "selection background" in a theme's 12 raw
-	// colors), so CardNoteStyle's own foreground is illegible against a
-	// focused card's background — same color on both sides. Concord's own
+	// card itself is focused: a muted note foreground is low-contrast
+	// against a focused card's highlight background. Concord's own
 	// selected-item styling (SidebarSelected) resolves the identical
 	// problem by keeping full-contrast foreground text on a selected
 	// background rather than trying to find a second muted tone, so this
