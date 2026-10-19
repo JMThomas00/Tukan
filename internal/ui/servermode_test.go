@@ -15,7 +15,7 @@ func TestNewBoardForIDLoadsTheSpecificBoard(t *testing.T) {
 	db, seed := newTestBoard(t)
 	first, second := seed.boards[0], seed.boards[1]
 
-	loaded, err := NewBoardForID(db, second.ID, 80, 24, "")
+	loaded, err := NewBoardForID(db, second.ID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("NewBoardForID: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestNewBoardForIDLoadsTheSpecificBoard(t *testing.T) {
 	// And loading the first board by ID directly should NOT silently
 	// return the same instance/data as the second — confirms this isn't
 	// accidentally still hardcoded to "whichever board is first".
-	loadedFirst, err := NewBoardForID(db, first.ID, 80, 24, "")
+	loadedFirst, err := NewBoardForID(db, first.ID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("NewBoardForID (first): %v", err)
 	}
@@ -53,11 +53,11 @@ func TestReloadPicksUpAnotherViewersMutation(t *testing.T) {
 	boardID := seed.boards[0].ID
 	laneID := seed.lanes[0].ID
 
-	viewerA, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewerA, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer A: %v", err)
 	}
-	viewerB, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewerB, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer B: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestReloadPreservesCursorAndMode(t *testing.T) {
 		t.Fatalf("create card 2: %v", err)
 	}
 
-	viewer, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewer, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestIsMainViewReflectsModalAndModeState(t *testing.T) {
 	db, seed := newTestBoard(t)
 	boardID := seed.boards[0].ID
 
-	viewer, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewer, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestSnapshotDetectsCardMutation(t *testing.T) {
 	boardID := seed.boards[0].ID
 	laneID := seed.lanes[0].ID
 
-	viewer, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewer, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestSnapshotIsNotAliasedByLaterMutation(t *testing.T) {
 		t.Fatalf("create card: %v", err)
 	}
 
-	viewer, err := NewBoardForID(db, boardID, 80, 24, "")
+	viewer, err := NewBoardForID(db, boardID, 80, 24, testStyles)
 	if err != nil {
 		t.Fatalf("load viewer: %v", err)
 	}

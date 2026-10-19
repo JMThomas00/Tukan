@@ -191,6 +191,12 @@ type BoardModel struct {
 	statusMsg           string
 	statusErr           bool
 	errTicks            int
+
+	// st is this board's own colors and styles, shared by pointer with
+	// every overlay it opens. themeLocked means the host picks the theme
+	// (Concord: each viewer's own), so the theme switcher is off.
+	st          *styles.Styles
+	themeLocked bool
 }
 
 // NewBoard creates a BoardModel and issues the initial DB load command.
@@ -213,6 +219,7 @@ func NewBoard(db *database.DB, width, height int, themeName string) (BoardModel,
 		checklists:       make(map[int64][]models.ChecklistItem),
 		filterInput:      fi,
 		currentThemeName: themeName,
+		st:               styles.ForName(themeName),
 	}
 	return b, b.cmdLoad()
 }
@@ -778,14 +785,14 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		}
 	case key.Matches(msg, km.NewCard):
 		if laneID := b.newCardLaneID(); laneID != 0 {
-			b.form = NewCardForm(laneID, b.allAssignees, b.boardLabels, b.width, b.height)
+			b.form = NewCardForm(b.st, laneID, b.allAssignees, b.boardLabels, b.width, b.height)
 			b.formActive = true
 			return b, b.form.Init()
 		}
 	case key.Matches(msg, km.EditCard):
 		card := b.focusedCard()
 		if card != nil {
-			b.form = EditCardForm(*card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
+			b.form = EditCardForm(b.st, *card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
 			b.formActive = true
 			return b, b.form.Init()
 		}
@@ -806,7 +813,7 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		}
 	case key.Matches(msg, km.SwitchBoard):
 		if len(b.boards) > 0 {
-			b.switcher = NewBoardSwitcher(b.boards, b.currentBoardID, b.width, b.height)
+			b.switcher = NewBoardSwitcher(b.st, b.boards, b.currentBoardID, b.width, b.height)
 			b.switcherActive = true
 			return b, b.switcher.Init()
 		}
@@ -817,7 +824,7 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		// checklist, not two that have to stay behaviorally identical forever.
 		card := b.focusedCard()
 		if card != nil {
-			b.form = EditCardForm(*card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
+			b.form = EditCardForm(b.st, *card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
 			b.form.section = sectionLabels
 			b.formActive = true
 			return b, b.form.Init()
@@ -825,7 +832,7 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	case key.Matches(msg, km.Checklist):
 		card := b.focusedCard()
 		if card != nil {
-			b.form = EditCardForm(*card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
+			b.form = EditCardForm(b.st, *card, b.allAssignees, b.cardAssignees[card.ID], b.boardLabels, b.cardLabels[card.ID], b.checklists[card.ID], b.width, b.height)
 			b.form.section = sectionChecklist
 			b.formActive = true
 			return b, b.form.Init()
@@ -833,7 +840,7 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 	case key.Matches(msg, km.CardEvents):
 		card := b.focusedCard()
 		if card != nil {
-			b.cardEvents = NewCardEvents(card.ID, card.Title, b.width, b.height)
+			b.cardEvents = NewCardEvents(b.st, card.ID, card.Title, b.width, b.height)
 			b.cardEventsActive = true
 			return b, tea.Batch(b.cardEvents.Init(), b.cmdLoadCardEvents(card.ID))
 		}
@@ -843,12 +850,12 @@ func (b BoardModel) handleKey(msg tea.KeyMsg) (BoardModel, tea.Cmd) {
 		b.filterInput.Focus()
 		b.mode = modeFilterEdit
 		return b, textinput.Blink
-	case key.Matches(msg, km.ThemeSwitcher):
-		b.themeSwitcher = NewThemeSwitcher(b.currentThemeName, b.width, b.height)
+	case key.Matches(msg, km.ThemeSwitcher) && !b.themeLocked:
+		b.themeSwitcher = NewThemeSwitcher(b.st, b.currentThemeName, b.width, b.height)
 		b.themeSwitcherActive = true
 		return b, b.themeSwitcher.Init()
 	case key.Matches(msg, km.LaneManager):
-		b.laneManager = NewLaneManager(b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
+		b.laneManager = NewLaneManager(b.st, b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
 		b.laneManagerActive = true
 		return b, b.laneManager.Init()
 	case key.Matches(msg, km.GanttView):
@@ -888,7 +895,7 @@ func (b BoardModel) View() string {
 
 	if len(b.lanes) == 0 {
 		return lipgloss.Place(b.width, b.height, lipgloss.Center, lipgloss.Center,
-			styles.CardTitleStyle.Render("Loading…"))
+			b.st.CardTitleStyle.Render("Loading…"))
 	}
 
 	header := b.renderBoardHeader()
@@ -907,7 +914,7 @@ func (b BoardModel) View() string {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, laneStrings...)
 	}
 
-	helpBar := RenderHelp(b.mode, b.viewMode, b.width)
+	helpBar := RenderHelp(b.st, b.mode, b.viewMode, b.width, !b.themeLocked)
 	statusBar := b.renderStatusBar()
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, statusBar, helpBar)
@@ -1002,7 +1009,7 @@ func (b BoardModel) renderBoardHeader() string {
 			name = string(r[:b.width])
 		}
 	}
-	nameLine := styles.FormLabelStyle.Render(name)
+	nameLine := b.st.FormLabelStyle.Render(name)
 
 	stats := b.boardStatsLine()
 	if b.width > 0 {
@@ -1010,7 +1017,7 @@ func (b BoardModel) renderBoardHeader() string {
 			stats = string(r[:b.width])
 		}
 	}
-	statsLine := styles.HelpDescStyle.Render(stats)
+	statsLine := b.st.HelpDescStyle.Render(stats)
 
 	return nameLine + "\n" + statsLine
 }
@@ -1056,14 +1063,14 @@ func (b BoardModel) renderLane(idx int, lane models.Lane, width int, focused boo
 	cards := b.visibleCards(lane.ID)
 
 	// Choose lane header color
-	headerColor := styles.ColorAccent
+	headerColor := b.st.ColorAccent
 	if lane.Color != "" {
 		headerColor = lane.Color
-	} else if idx < len(styles.LaneColors) {
-		headerColor = styles.LaneColors[idx]
+	} else if idx < len(b.st.LaneColors) {
+		headerColor = b.st.LaneColors[idx]
 	}
 
-	headerStyle := styles.LaneHeaderStyle.Foreground(lipgloss.Color(headerColor))
+	headerStyle := b.st.LaneHeaderStyle.Foreground(lipgloss.Color(headerColor))
 	header := headerStyle.Render(fmt.Sprintf("%s (%d)", lane.Name, len(cards)))
 
 	// Visible card area height
@@ -1084,7 +1091,7 @@ func (b BoardModel) renderLane(idx int, lane models.Lane, width int, focused boo
 
 	var cardViews []string
 	if len(cards) == 0 {
-		placeholder := styles.CardNoteStyle.Width(innerWidth).Render("Press n to add a card")
+		placeholder := b.st.CardNoteStyle.Width(innerWidth).Render("Press n to add a card")
 		cardViews = append(cardViews, placeholder)
 	} else {
 		end := scroll + visibleCount
@@ -1101,9 +1108,9 @@ func (b BoardModel) renderLane(idx int, lane models.Lane, width int, focused boo
 
 	var laneStyle lipgloss.Style
 	if focused {
-		laneStyle = styles.LaneFocusedStyle
+		laneStyle = b.st.LaneFocusedStyle
 	} else {
-		laneStyle = styles.LaneStyle
+		laneStyle = b.st.LaneStyle
 	}
 
 	return laneStyle.Width(width).Height(b.height - boardChrome).Render(inner)
@@ -1118,9 +1125,9 @@ func (b BoardModel) renderCard(card models.Card, focused bool, width int) string
 	// the terminal's default background wherever it appears, not the
 	// card's actual (focused/default) highlight. See the comment on
 	// renderCardBadges for why this matters more than it might look like.
-	bg := styles.ColorSurface
+	bg := b.st.ColorSurface
 	if focused && !isMoving {
-		bg = styles.ColorHighlight
+		bg = b.st.ColorHighlight
 	}
 
 	// No per-field .Width() here — padding to the card's width happens
@@ -1129,8 +1136,8 @@ func (b BoardModel) renderCard(card models.Card, focused bool, width int) string
 	// call's own width using that call's own background; padding each field
 	// individually first (the old behavior) baked in the wrong background
 	// for any trailing whitespace before the outer style ever ran.
-	title := renderCardTitleRow(card.Title, card.TicketNo, width, bg)
-	assignee := renderCardAssignees(b.cardAssignees[card.ID], focused, isMoving, bg)
+	title := renderCardTitleRow(b.st, card.Title, card.TicketNo, width, bg)
+	assignee := renderCardAssignees(b.st, b.cardAssignees[card.ID], focused, isMoving, bg)
 
 	var note string
 	if card.Note != "" {
@@ -1142,27 +1149,27 @@ func (b BoardModel) renderCard(card models.Card, focused bool, width int) string
 		if len(line) > width-2 {
 			line = line[:width-2]
 		}
-		note = noteStyleForCard(focused, isMoving).Render(line)
+		note = noteStyleForCard(b.st, focused, isMoving).Render(line)
 	}
 
 	content := title + "\n" + assignee
 	if note != "" {
 		content += "\n" + note
 	}
-	content += "\n" + renderCardBadges(card, b.cardLabels[card.ID], b.checklists[card.ID], width, bg)
+	content += "\n" + renderCardBadges(b.st, card, b.cardLabels[card.ID], b.checklists[card.ID], width, bg)
 
 	var cardStyle lipgloss.Style
 	switch {
 	case isMoving:
-		cardStyle = styles.CardMovingStyle
+		cardStyle = b.st.CardMovingStyle
 	case focused:
-		cardStyle = styles.CardFocusedStyle
+		cardStyle = b.st.CardFocusedStyle
 	default:
-		cardStyle = styles.CardStyle
+		cardStyle = b.st.CardStyle
 	}
 
 	if b.mode == modeConfirmDelete && focused {
-		cardStyle = cardStyle.BorderForeground(lipgloss.Color(styles.ColorDanger))
+		cardStyle = cardStyle.BorderForeground(lipgloss.Color(b.st.ColorDanger))
 	}
 
 	return cardStyle.Width(width).Render(content) + "\n"
@@ -1179,7 +1186,7 @@ func (b BoardModel) renderCard(card models.Card, focused bool, width int) string
 // second line by width's word-wrap. Every segment — including the padding
 // between them — carries an explicit Background(bg), for the same reason
 // renderCardBadges' segments do.
-func renderCardTitleRow(title string, ticketNo int, width int, bg string) string {
+func renderCardTitleRow(st *styles.Styles, title string, ticketNo int, width int, bg string) string {
 	bgColor := lipgloss.Color(bg)
 	ticketText := fmt.Sprintf("#%d", ticketNo)
 	ticketWidth := lipgloss.Width(ticketText)
@@ -1192,8 +1199,8 @@ func renderCardTitleRow(title string, ticketNo int, width int, bg string) string
 		title = string(r[:maxTitleWidth])
 	}
 
-	titleSeg := styles.CardTitleStyle.Background(bgColor).Render(title)
-	ticketSeg := styles.CardTicketStyle.Background(bgColor).Render(ticketText)
+	titleSeg := st.CardTitleStyle.Background(bgColor).Render(title)
+	ticketSeg := st.CardTicketStyle.Background(bgColor).Render(ticketText)
 
 	gap := width - lipgloss.Width(title) - ticketWidth
 	if gap < 1 {
@@ -1221,7 +1228,7 @@ func renderCardTitleRow(title string, ticketNo int, width int, bg string) string
 // styling of its own, so it renders in the terminal's default background
 // too, right in between two otherwise-correctly-colored segments. bgJoin
 // below exists specifically so no separator is ever a naked, unstyled string.
-func renderCardBadges(card models.Card, labels []models.Label, checklist []models.ChecklistItem, width int, bg string) string {
+func renderCardBadges(st *styles.Styles, card models.Card, labels []models.Label, checklist []models.ChecklistItem, width int, bg string) string {
 	var segs []string
 	bgColor := lipgloss.Color(bg)
 
@@ -1242,16 +1249,16 @@ func renderCardBadges(card models.Card, labels []models.Label, checklist []model
 		}
 		chipLine := bgJoin(chips, " ", bgColor)
 		if extra > 0 {
-			chipLine = bgJoin([]string{chipLine, styles.CardDueDateStyle.Background(bgColor).Render(fmt.Sprintf("+%d", extra))}, " ", bgColor)
+			chipLine = bgJoin([]string{chipLine, st.CardDueDateStyle.Background(bgColor).Render(fmt.Sprintf("+%d", extra))}, " ", bgColor)
 		}
 		segs = append(segs, chipLine)
 	}
 
 	if card.DueDate != nil {
 		label := "due " + card.DueDate.Format(dueDateLayout)
-		style := styles.CardDueDateStyle
+		style := st.CardDueDateStyle
 		if card.DueDate.Before(startOfToday()) {
-			style = styles.CardOverdueStyle
+			style = st.CardOverdueStyle
 		}
 		segs = append(segs, style.Background(bgColor).Render(label))
 	}
@@ -1263,7 +1270,7 @@ func renderCardBadges(card models.Card, labels []models.Label, checklist []model
 				done++
 			}
 		}
-		segs = append(segs, styles.CardDueDateStyle.Background(bgColor).Render(fmt.Sprintf("[%d/%d]", done, len(checklist))))
+		segs = append(segs, st.CardDueDateStyle.Background(bgColor).Render(fmt.Sprintf("[%d/%d]", done, len(checklist))))
 	}
 
 	return bgJoin(segs, "  ", bgColor)
@@ -1277,14 +1284,14 @@ func renderCardBadges(card models.Card, labels []models.Label, checklist []model
 // leaf style (including the separator, via bgJoin — see renderCardBadges'
 // own comment for why that matters) sets an explicit Background(bg) for the
 // identical reason renderCardBadges' segments do.
-func renderCardAssignees(assignees []models.Assignee, focused, isMoving bool, bg string) string {
+func renderCardAssignees(st *styles.Styles, assignees []models.Assignee, focused, isMoving bool, bg string) string {
 	if len(assignees) == 0 {
-		return noteStyleForCard(focused, isMoving).Render("unassigned")
+		return noteStyleForCard(st, focused, isMoving).Render("unassigned")
 	}
 	bgColor := lipgloss.Color(bg)
 	parts := make([]string, 0, len(assignees))
 	for _, a := range assignees {
-		parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color(styles.AssigneeColor(a.ID))).Background(bgColor).Render("@"+a.Name))
+		parts = append(parts, lipgloss.NewStyle().Foreground(lipgloss.Color(st.AssigneeColor(a.ID))).Background(bgColor).Render("@"+a.Name))
 	}
 	return bgJoin(parts, " ", bgColor)
 }
@@ -1308,11 +1315,11 @@ func bgJoin(segs []string, sep string, bg lipgloss.Color) string {
 // focused renders the note illegible against its own background. A moving
 // card keeps the default (non-highlight) background, so it doesn't need the
 // focused variant even while "focused" in cursor terms.
-func noteStyleForCard(focused, isMoving bool) lipgloss.Style {
+func noteStyleForCard(st *styles.Styles, focused, isMoving bool) lipgloss.Style {
 	if focused && !isMoving {
-		return styles.CardNoteFocusedStyle
+		return st.CardNoteFocusedStyle
 	}
-	return styles.CardNoteStyle
+	return st.CardNoteStyle
 }
 
 func startOfToday() time.Time {
@@ -1324,25 +1331,25 @@ func (b BoardModel) renderStatusBar() string {
 	if b.statusMsg == "" {
 		if b.mode == modeMoving && b.moving != nil {
 			msg := fmt.Sprintf("Moving: %q  →  use ←/→ to pick lane, enter to drop", b.moving.Title)
-			return styles.StatusBarStyle.Width(b.width).Render(msg)
+			return b.st.StatusBarStyle.Width(b.width).Render(msg)
 		}
 		if b.mode == modeConfirmDelete {
 			msg := "Delete this card? Press y to confirm, esc to cancel"
-			return styles.StatusErrStyle.Width(b.width).Render(msg)
+			return b.st.StatusErrStyle.Width(b.width).Render(msg)
 		}
 		if b.mode == modeFilterEdit {
 			msg := "Search: " + b.filterInput.View()
-			return styles.StatusBarStyle.Width(b.width).Render(msg)
+			return b.st.StatusBarStyle.Width(b.width).Render(msg)
 		}
 		if b.filterQuery != "" {
 			msg := fmt.Sprintf("filter: %q  (esc to clear)", b.filterQuery)
-			return styles.StatusBarStyle.Width(b.width).Render(msg)
+			return b.st.StatusBarStyle.Width(b.width).Render(msg)
 		}
-		return styles.StatusBarStyle.Width(b.width).Render("")
+		return b.st.StatusBarStyle.Width(b.width).Render("")
 	}
-	st := styles.StatusBarStyle
+	st := b.st.StatusBarStyle
 	if b.statusErr {
-		st = styles.StatusErrStyle
+		st = b.st.StatusErrStyle
 	}
 	return st.Width(b.width).Render(b.statusMsg)
 }

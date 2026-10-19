@@ -18,6 +18,7 @@ type splashDoneMsg struct{}
 
 // SplashModel is the Bubble Tea model for the startup splash screen.
 type SplashModel struct {
+	st       *styles.Styles // the owning board's, shared
 	logo     string
 	elapsed  time.Duration
 	duration time.Duration
@@ -26,8 +27,9 @@ type SplashModel struct {
 }
 
 // NewSplash creates a SplashModel using the embedded logo and config duration.
-func NewSplash(cfg config.Config) SplashModel {
+func NewSplash(st *styles.Styles, cfg config.Config) SplashModel {
 	return SplashModel{
+		st:       st,
 		logo:     config.LogoContent,
 		duration: cfg.SplashDuration,
 	}
@@ -53,7 +55,7 @@ func (s SplashModel) Update(msg tea.Msg) (SplashModel, tea.Cmd) {
 }
 
 func (s SplashModel) View() string {
-	logo := styles.SplashStyle.Render(s.logo)
+	logo := s.st.SplashStyle.Render(s.logo)
 	if s.width == 0 || s.height == 0 {
 		return logo
 	}

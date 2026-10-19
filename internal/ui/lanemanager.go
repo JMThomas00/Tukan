@@ -47,6 +47,7 @@ type laneManagerDoneMsg struct {
 // LaneManagerModel is the swim-lane configuration modal: add, rename,
 // delete, and reorder the current board's lanes.
 type LaneManagerModel struct {
+	st        *styles.Styles // the owning board's, shared
 	boardID   int64
 	lanes     []models.Lane
 	cardCount map[int64]int // laneID -> number of cards in it, for the delete-warning text
@@ -61,12 +62,13 @@ type LaneManagerModel struct {
 // NewLaneManager creates a lane manager for a board. cardCount is used only
 // to word the delete confirmation ("this deletes N card(s)") — it's the
 // caller's current in-memory counts, not re-queried here.
-func NewLaneManager(boardID int64, lanes []models.Lane, cardCount map[int64]int, w, h int) LaneManagerModel {
+func NewLaneManager(st *styles.Styles, boardID int64, lanes []models.Lane, cardCount map[int64]int, w, h int) LaneManagerModel {
 	ni := textinput.New()
 	ni.Placeholder = "Lane name"
 	ni.CharLimit = 40
 
 	return LaneManagerModel{
+		st:        st,
 		boardID:   boardID,
 		lanes:     lanes,
 		cardCount: cardCount,
@@ -203,7 +205,7 @@ func (m LaneManagerModel) updateBrowsing(msg tea.KeyMsg, km KeyMap) (LaneManager
 
 func (m LaneManagerModel) View() string {
 	var b strings.Builder
-	b.WriteString(styles.FormLabelStyle.Render("Lanes") + "\n\n")
+	b.WriteString(m.st.FormLabelStyle.Render("Lanes") + "\n\n")
 
 	switch m.mode {
 	case laneManagerNaming:
@@ -211,9 +213,9 @@ func (m LaneManagerModel) View() string {
 		if m.renaming {
 			label = "Rename lane"
 		}
-		b.WriteString(styles.FormLabelStyle.Render(label) + "\n")
+		b.WriteString(m.st.FormLabelStyle.Render(label) + "\n")
 		b.WriteString(m.nameInput.View() + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("enter save  esc cancel"))
+		b.WriteString(m.st.HelpDescStyle.Render("enter save  esc cancel"))
 
 	case laneManagerConfirmDelete:
 		name, count := "", 0
@@ -223,23 +225,23 @@ func (m LaneManagerModel) View() string {
 			count = m.cardCount[lane.ID]
 		}
 		warning := fmt.Sprintf("Delete lane %q? This deletes %d card(s) in it.", name, count)
-		b.WriteString(styles.FormErrorStyle.Render(warning) + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("y confirm  esc cancel"))
+		b.WriteString(m.st.FormErrorStyle.Render(warning) + "\n\n")
+		b.WriteString(m.st.HelpDescStyle.Render("y confirm  esc cancel"))
 
 	default:
 		for i, lane := range m.lanes {
 			line := fmt.Sprintf("%s (%d)", lane.Name, m.cardCount[lane.ID])
 			if i == m.cursor {
-				line = styles.HelpKeyStyle.Render("› " + line)
+				line = m.st.HelpKeyStyle.Render("› " + line)
 			} else {
-				line = styles.FormLabelStyle.Render("  " + line)
+				line = m.st.FormLabelStyle.Render("  " + line)
 			}
 			b.WriteString(line + "\n")
 		}
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ select  ←/→ reorder  n new  r rename  d delete  esc close"))
+		b.WriteString("\n" + m.st.HelpDescStyle.Render("↑/↓ select  ←/→ reorder  n new  r rename  d delete  esc close"))
 	}
 
-	box := styles.ModalBoxStyle.Width(50).Render(b.String())
+	box := m.st.ModalBoxStyle.Width(50).Render(b.String())
 	if m.width > 0 && m.height > 0 {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 	}

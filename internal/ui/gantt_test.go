@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/JMThomas00/tukan/internal/models"
-	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 func daysFromToday(n int) *time.Time {
@@ -292,7 +291,7 @@ func TestGanttTimelineCellsBarSegmentsCarryBackground(t *testing.T) {
 	end := windowStart.AddDate(0, 0, 3)
 	card := models.Card{StartDate: &start, DueDate: &end}
 
-	out := ganttTimelineCells(card, bg, windowStart, daysVisible)
+	out := ganttTimelineCells(testStyles, card, bg, windowStart, daysVisible)
 
 	startCol, width, inView := ganttBarPlacement(windowStart, daysVisible, &start, &end)
 	if !inView {
@@ -301,7 +300,7 @@ func TestGanttTimelineCellsBarSegmentsCarryBackground(t *testing.T) {
 	totalCols := daysVisible * ganttColsPerDay
 
 	leading := lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", startCol))
-	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.ColorAccent)).Background(bgColor).Render(strings.Repeat("█", width))
+	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(testStyles.ColorAccent)).Background(bgColor).Render(strings.Repeat("█", width))
 	trailing := lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", totalCols-startCol-width))
 	want := leading + bar + trailing
 
@@ -324,7 +323,7 @@ func TestGanttTimelineCellsOverdueBarUsesDangerColor(t *testing.T) {
 	due := startOfToday().AddDate(0, 0, -2)
 	card := models.Card{DueDate: &due}
 
-	out := ganttTimelineCells(card, bg, windowStart, daysVisible)
+	out := ganttTimelineCells(testStyles, card, bg, windowStart, daysVisible)
 
 	startCol, width, inView := ganttBarPlacement(windowStart, daysVisible, &due, &due)
 	if !inView {
@@ -333,7 +332,7 @@ func TestGanttTimelineCellsOverdueBarUsesDangerColor(t *testing.T) {
 	totalCols := daysVisible * ganttColsPerDay
 
 	leading := lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", startCol))
-	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.ColorDanger)).Background(bgColor).Render(strings.Repeat("█", width))
+	bar := lipgloss.NewStyle().Foreground(lipgloss.Color(testStyles.ColorDanger)).Background(bgColor).Render(strings.Repeat("█", width))
 	trailing := lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", totalCols-startCol-width))
 	want := leading + bar + trailing
 
@@ -349,7 +348,7 @@ func TestGanttTimelineCellsOverdueBarUsesDangerColor(t *testing.T) {
 // same "always render something of a fixed size" convention
 // renderCardBadges follows for its own line).
 func TestGanttTimelineCellsUnscheduledCardShowsPlaceholder(t *testing.T) {
-	out := ganttTimelineCells(models.Card{}, "#2d3f76", startOfToday(), 10)
+	out := ganttTimelineCells(testStyles, models.Card{}, "#2d3f76", startOfToday(), 10)
 	if !strings.Contains(out, "—") {
 		t.Fatalf("expected the unscheduled placeholder '—' in %q", out)
 	}

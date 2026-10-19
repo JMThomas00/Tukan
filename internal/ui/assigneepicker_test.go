@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/JMThomas00/tukan/internal/styles"
 )
 
 // TestAssigneePickerViewBareHeaderReflectsFocus is the only visual cue
@@ -15,15 +13,15 @@ import (
 // same way viewBare itself does, so it holds regardless of whether the test
 // environment's terminal profile emits real ANSI or not.
 func TestAssigneePickerViewBareHeaderReflectsFocus(t *testing.T) {
-	p := NewAssigneePicker(1, nil, nil, 80, 24)
+	p := NewAssigneePicker(testStyles, 1, nil, nil, 80, 24)
 
 	unfocused := p.viewBare(false)
-	if !strings.HasPrefix(unfocused, styles.FormLabelStyle.Render("Assignees")) {
+	if !strings.HasPrefix(unfocused, testStyles.FormLabelStyle.Render("Assignees")) {
 		t.Fatalf("unfocused header doesn't start with the plain 'Assignees' label: %q", unfocused)
 	}
 
 	focused := p.viewBare(true)
-	if !strings.HasPrefix(focused, styles.SectionActiveStyle.Render("Assignees")) {
+	if !strings.HasPrefix(focused, testStyles.SectionActiveStyle.Render("Assignees")) {
 		t.Fatalf("focused header doesn't start with the highlighted 'Assignees' label: %q", focused)
 	}
 }
@@ -36,7 +34,7 @@ func TestAssigneePickerViewBareHeaderReflectsFocus(t *testing.T) {
 // esc was pressed separately, which looked like "enter does nothing, esc
 // saves" from the outside.
 func TestAssigneePickerCreateResetsToBrowsingMode(t *testing.T) {
-	p := NewAssigneePicker(1, nil, nil, 80, 24)
+	p := NewAssigneePicker(testStyles, 1, nil, nil, 80, 24)
 	p.mode = assigneePickerCreatingAssignee
 	p.nameInput.SetValue("Burt")
 
@@ -65,7 +63,7 @@ func TestAssigneePickerCreateDoesNotCloseTheEditorAndAutoSelects(t *testing.T) {
 	db, b := newTestBoard(t)
 	card := addTestCard(t, db, &b)
 
-	b.form = EditCardForm(card, nil, nil, nil, nil, nil, b.width, b.height)
+	b.form = EditCardForm(testStyles, card, nil, nil, nil, nil, nil, b.width, b.height)
 	b.form.section = sectionAssignees
 	b.formActive = true
 

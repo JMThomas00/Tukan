@@ -193,7 +193,7 @@ func TestBoardSwitcherDoneMsgHandledBeforeActiveGuard(t *testing.T) {
 	target := b.boards[1].ID
 
 	b.switcherActive = true
-	b.switcher = NewBoardSwitcher(b.boards, b.currentBoardID, b.width, b.height)
+	b.switcher = NewBoardSwitcher(testStyles, b.boards, b.currentBoardID, b.width, b.height)
 
 	updated, cmd := b.Update(boardSwitcherDoneMsg{action: switcherSelect, boardID: target})
 
@@ -225,7 +225,7 @@ func TestBoardSwitcherDoneMsgHandledBeforeActiveGuard(t *testing.T) {
 func TestBoardSwitcherCancelDoesNotSwitch(t *testing.T) {
 	_, b := newTestBoard(t)
 	b.switcherActive = true
-	b.switcher = NewBoardSwitcher(b.boards, b.currentBoardID, b.width, b.height)
+	b.switcher = NewBoardSwitcher(testStyles, b.boards, b.currentBoardID, b.width, b.height)
 	original := b.currentBoardID
 
 	updated, cmd := b.Update(boardSwitcherDoneMsg{cancelled: true})
@@ -247,7 +247,7 @@ func TestBoardSwitcherCancelDoesNotSwitch(t *testing.T) {
 func TestBoardSwitcherCreateFlow(t *testing.T) {
 	_, b := newTestBoard(t)
 	b.switcherActive = true
-	b.switcher = NewBoardSwitcher(b.boards, b.currentBoardID, b.width, b.height)
+	b.switcher = NewBoardSwitcher(testStyles, b.boards, b.currentBoardID, b.width, b.height)
 
 	updated, cmd := b.Update(boardSwitcherDoneMsg{action: switcherCreated, name: "New Board"})
 	if updated.switcherActive {

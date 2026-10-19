@@ -6,49 +6,38 @@ import (
 	"github.com/JMThomas00/tukan/internal/themes"
 )
 
-// Color palette — package vars (not consts) so Apply can rebuild them from
-// a loaded theme, including live at runtime while the theme switcher's
-// preview is open. Every value here is set by Apply(); the literals below
-// only exist as a documented starting point until the first Apply() call.
-var (
-	ColorBg        = "#1a1b26"
-	ColorSurface   = "#24283b"
-	ColorBorder    = "#414868"
-	ColorAccent    = "#7aa2f7"
-	ColorText      = "#c0caf5"
-	ColorSubtext   = "#565f89"
-	ColorDanger    = "#f7768e"
-	ColorSuccess   = "#9ece6a"
-	ColorWarning   = "#e0af68"
-	ColorInfo      = "#7dcfff"
-	ColorMuted     = "#3b4261"
-	ColorHighlight = "#2d3f76"
-	ColorAssignee  = "#bb9af7"
-)
+// Styles is one theme's full set of colors and pre-computed Lip Gloss
+// styles. Each board owns its own *Styles rather than sharing package
+// state: in Concord mode one process serves every viewer on a server, each
+// in their own Concord theme, so a theme change (or the standalone theme
+// switcher's live preview) must only ever repaint the board it belongs to.
+// Every sub-model of a board holds the same pointer, so replacing the value
+// it points at (*st = *New(theme)) recolors the whole board on its next
+// View() with no other plumbing.
+type Styles struct {
+	// Color palette — UI roles mapped from the theme's 12 raw colors.
+	ColorBg        string
+	ColorSurface   string
+	ColorBorder    string
+	ColorAccent    string
+	ColorText      string
+	ColorSubtext   string
+	ColorDanger    string
+	ColorSuccess   string
+	ColorWarning   string
+	ColorInfo      string
+	ColorMuted     string
+	ColorHighlight string
+	ColorAssignee  string
 
-// LaneColors maps default lane positions to their header accent colors.
-var LaneColors = [4]string{
-	"#7aa2f7", // To-Do    — blue
-	"#e0af68", // In Progress — yellow
-	"#f7768e", // On Hold  — red
-	"#9ece6a", // Done     — green
-}
+	// LaneColors maps default lane positions to their header accent colors
+	// (To-Do, In Progress, On Hold, Done).
+	LaneColors [4]string
 
-// LabelPalette is the fixed swatch list offered when creating a new label,
-// so users pick a color rather than typing a hex value.
-var LabelPalette = [8]string{
-	"#f7768e", // red
-	"#e0af68", // yellow
-	"#9ece6a", // green
-	"#7dcfff", // cyan
-	"#7aa2f7", // blue
-	"#bb9af7", // purple
-	"#c0caf5", // text
-	"#565f89", // subtext
-}
+	// LabelPalette is the fixed swatch list offered when creating a new
+	// label, so users pick a color rather than typing a hex value.
+	LabelPalette [8]string
 
-// Pre-computed Lip Gloss styles. Rebuilt by Apply(), never allocated per-frame.
-var (
 	// Lane column styles
 	LaneStyle        lipgloss.Style
 	LaneFocusedStyle lipgloss.Style
@@ -82,83 +71,92 @@ var (
 	// Status bar
 	StatusBarStyle lipgloss.Style
 	StatusErrStyle lipgloss.Style
-)
+}
 
-// Apply rebuilds every package-level color and Style var from theme. Called
-// once at startup (after the config/theme is loaded) and again on every
-// keystroke while the theme switcher's live preview is open — cheap and
-// safe to call repeatedly, since every styles.XyzStyle reference elsewhere
-// in this codebase reads these package vars fresh at render time (Bubble
-// Tea redraws every frame), so a reassignment here is visible on the very
-// next View() call with no other plumbing needed.
+// ForName builds the styles for a theme slug, falling back to Tukan's
+// default palette when the name is empty or can't be loaded.
+func ForName(name string) *Styles {
+	theme, err := themes.GetTheme(name)
+	if err != nil {
+		theme = themes.GetDefaultTheme()
+	}
+	return New(theme)
+}
+
+// Default is Tukan's original palette.
+func Default() *Styles { return New(themes.GetDefaultTheme()) }
+
+// New builds every color and Style from theme. Cheap enough to call on
+// every keystroke while the theme switcher's preview is open.
 //
 // The mapping from a theme's 12 raw palette colors to Tukan's own UI roles
 // is a judgment call (none of the 12 fields is explicitly "a highlighted
 // surface tone") — spot-checked against several of the 45 ported themes,
 // including a light-variant one, rather than derived mechanically.
-func Apply(theme *themes.Theme) {
+func New(theme *themes.Theme) *Styles {
 	c := theme.Colors
+	s := &Styles{}
 
-	ColorBg = c.Background
-	ColorSurface = c.Background
-	ColorBorder = c.CurrentLine
-	ColorAccent = c.Purple
-	ColorText = c.Foreground
-	ColorSubtext = c.Comment
-	ColorDanger = c.Red
-	ColorSuccess = c.Green
-	ColorWarning = c.Orange
-	ColorInfo = c.Cyan
-	ColorMuted = c.Selection
-	ColorHighlight = c.Selection
-	ColorAssignee = c.Pink
+	s.ColorBg = c.Background
+	s.ColorSurface = c.Background
+	s.ColorBorder = c.CurrentLine
+	s.ColorAccent = c.Purple
+	s.ColorText = c.Foreground
+	s.ColorSubtext = c.Comment
+	s.ColorDanger = c.Red
+	s.ColorSuccess = c.Green
+	s.ColorWarning = c.Orange
+	s.ColorInfo = c.Cyan
+	s.ColorMuted = c.Selection
+	s.ColorHighlight = c.Selection
+	s.ColorAssignee = c.Pink
 
-	LaneColors = [4]string{c.Cyan, c.Orange, c.Red, c.Green}
-	LabelPalette = [8]string{c.Red, c.Orange, c.Green, c.Cyan, c.Purple, c.Pink, c.Foreground, c.Comment}
+	s.LaneColors = [4]string{c.Cyan, c.Orange, c.Red, c.Green}
+	s.LabelPalette = [8]string{c.Red, c.Orange, c.Green, c.Cyan, c.Purple, c.Pink, c.Foreground, c.Comment}
 
 	// Lane column
-	LaneStyle = lipgloss.NewStyle().
+	s.LaneStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorBorder)).
+		BorderForeground(lipgloss.Color(s.ColorBorder)).
 		Padding(0, 1)
 
-	LaneFocusedStyle = LaneStyle.
-		BorderForeground(lipgloss.Color(ColorAccent))
+	s.LaneFocusedStyle = s.LaneStyle.
+		BorderForeground(lipgloss.Color(s.ColorAccent))
 
-	LaneHeaderStyle = lipgloss.NewStyle().
+	s.LaneHeaderStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorAccent)).
+		Foreground(lipgloss.Color(s.ColorAccent)).
 		MarginBottom(1)
 
 	// Card
-	CardStyle = lipgloss.NewStyle().
+	s.CardStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorBorder)).
-		Background(lipgloss.Color(ColorSurface)).
+		BorderForeground(lipgloss.Color(s.ColorBorder)).
+		Background(lipgloss.Color(s.ColorSurface)).
 		Padding(0, 1).
 		MarginBottom(1)
 
-	CardFocusedStyle = CardStyle.
-		BorderForeground(lipgloss.Color(ColorAccent)).
-		Background(lipgloss.Color(ColorHighlight))
+	s.CardFocusedStyle = s.CardStyle.
+		BorderForeground(lipgloss.Color(s.ColorAccent)).
+		Background(lipgloss.Color(s.ColorHighlight))
 
-	CardMovingStyle = CardStyle.
+	s.CardMovingStyle = s.CardStyle.
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorWarning))
+		BorderForeground(lipgloss.Color(s.ColorWarning))
 
-	CardTitleStyle = lipgloss.NewStyle().
+	s.CardTitleStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorText))
+		Foreground(lipgloss.Color(s.ColorText))
 
 	// CardTicketStyle is deliberately muted (unlike the bold title it sits
 	// beside) — the ticket number is a reference/identity marker, not the
 	// primary thing drawing the eye on a card.
-	CardTicketStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtext))
+	s.CardTicketStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorSubtext))
 
-	CardNoteStyle = lipgloss.NewStyle().
+	s.CardNoteStyle = lipgloss.NewStyle().
 		Italic(true).
-		Foreground(lipgloss.Color(ColorMuted))
+		Foreground(lipgloss.Color(s.ColorMuted))
 
 	// CardNoteFocusedStyle is used instead of CardNoteStyle whenever the
 	// card itself is focused: ColorMuted and ColorHighlight are both
@@ -171,27 +169,27 @@ func Apply(theme *themes.Theme) {
 	// background rather than trying to find a second muted tone, so this
 	// does the same: full ColorText contrast, keeping only the italic to
 	// preserve "this is a note" as a visual cue.
-	CardNoteFocusedStyle = lipgloss.NewStyle().
+	s.CardNoteFocusedStyle = lipgloss.NewStyle().
 		Italic(true).
-		Foreground(lipgloss.Color(ColorText))
+		Foreground(lipgloss.Color(s.ColorText))
 
-	CardDueDateStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtext))
+	s.CardDueDateStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorSubtext))
 
-	CardOverdueStyle = lipgloss.NewStyle().
+	s.CardOverdueStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorDanger))
+		Foreground(lipgloss.Color(s.ColorDanger))
 
 	// Modal
-	ModalBoxStyle = lipgloss.NewStyle().
+	s.ModalBoxStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorAccent)).
-		Background(lipgloss.Color(ColorSurface)).
+		BorderForeground(lipgloss.Color(s.ColorAccent)).
+		Background(lipgloss.Color(s.ColorSurface)).
 		Padding(1, 2)
 
-	FormLabelStyle = lipgloss.NewStyle().
+	s.FormLabelStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorAccent))
+		Foreground(lipgloss.Color(s.ColorAccent))
 
 	// SectionActiveStyle marks whichever field/section currently has focus
 	// in the card editor. It used to just be HelpKeyStyle — Bold +
@@ -201,43 +199,44 @@ func Apply(theme *themes.Theme) {
 	// inverted/pill treatment (background instead of just a text color)
 	// can't collide with the unfocused style by coincidence the way two
 	// same-shaped foreground-only styles did.
-	SectionActiveStyle = lipgloss.NewStyle().
+	s.SectionActiveStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(ColorBg)).
-		Background(lipgloss.Color(ColorAccent)).
+		Foreground(lipgloss.Color(s.ColorBg)).
+		Background(lipgloss.Color(s.ColorAccent)).
 		Padding(0, 1)
 
-	FormErrorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorDanger))
+	s.FormErrorStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorDanger))
 
 	// Help bar — no background: a filled strip here only reached the
 	// terminal's own default background for however many rows were left
 	// over below it (see boardChrome's comment for why that gap existed),
 	// which read as the highlight visibly "cutting off" rather than
 	// reaching the bottom of the window.
-	HelpBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtext)).
+	s.HelpBarStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorSubtext)).
 		Padding(0, 1)
 
-	HelpKeyStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorAccent)).
+	s.HelpKeyStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorAccent)).
 		Bold(true)
 
-	HelpDescStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtext))
+	s.HelpDescStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorSubtext))
 
 	// Splash screen
-	SplashStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorAccent))
+	s.SplashStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorAccent))
 
 	// Status bar — no background, same reasoning as HelpBarStyle above.
-	StatusBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtext)).
+	s.StatusBarStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorSubtext)).
 		Padding(0, 1)
 
-	StatusErrStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorDanger)).
+	s.StatusErrStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(s.ColorDanger)).
 		Padding(0, 1)
+	return s
 }
 
 // AssigneeColor deterministically picks a color for a registered assignee
@@ -245,18 +244,14 @@ func Apply(theme *themes.Theme) {
 // round-robin by insertion order (SQLite's autoincrement id), not stored
 // anywhere. That's what makes the same person always render in the same
 // color across every card and board (the id doesn't change) while staying
-// automatically theme-consistent (LabelPalette is rebuilt by Apply(), so a
+// automatically theme-consistent (LabelPalette comes from the theme, so a
 // theme switch recolors assignees too, the same as it does labels) —
 // storing an explicit hex value per assignee would go stale the moment the
 // theme changed.
-func AssigneeColor(assigneeID int64) string {
+func (s *Styles) AssigneeColor(assigneeID int64) string {
 	if assigneeID <= 0 {
-		return ColorAssignee
+		return s.ColorAssignee
 	}
-	idx := int((assigneeID - 1) % int64(len(LabelPalette)))
-	return LabelPalette[idx]
-}
-
-func init() {
-	Apply(themes.GetDefaultTheme())
+	idx := int((assigneeID - 1) % int64(len(s.LabelPalette)))
+	return s.LabelPalette[idx]
 }

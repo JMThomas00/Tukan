@@ -62,6 +62,7 @@ type cardFormDoneMsg struct {
 // CardFormModel is just another caller of them now, nested one level
 // deeper than BoardModel used to call them directly.
 type CardFormModel struct {
+	st        *styles.Styles // the owning board's, shared
 	mode      formMode
 	card      models.Card
 	laneID    int64
@@ -82,16 +83,16 @@ type CardFormModel struct {
 // boardLabels are the global assignee registry and the board's label
 // palette, so the embedded pickers have something to offer even though a
 // not-yet-created card has none of its own yet.
-func NewCardForm(laneID int64, allAssignees []models.Assignee, boardLabels []models.Label, w, h int) CardFormModel {
-	return buildForm(formCreate, models.Card{LaneID: laneID}, allAssignees, nil, boardLabels, nil, nil, w, h)
+func NewCardForm(st *styles.Styles, laneID int64, allAssignees []models.Assignee, boardLabels []models.Label, w, h int) CardFormModel {
+	return buildForm(st, formCreate, models.Card{LaneID: laneID}, allAssignees, nil, boardLabels, nil, nil, w, h)
 }
 
 // EditCardForm creates a pre-populated card form.
-func EditCardForm(card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
-	return buildForm(formEdit, card, allAssignees, cardAssignees, boardLabels, cardLabels, checklistItems, w, h)
+func EditCardForm(st *styles.Styles, card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
+	return buildForm(st, formEdit, card, allAssignees, cardAssignees, boardLabels, cardLabels, checklistItems, w, h)
 }
 
-func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
+func buildForm(st *styles.Styles, mode formMode, card models.Card, allAssignees []models.Assignee, cardAssignees []models.Assignee, boardLabels []models.Label, cardLabels []models.Label, checklistItems []models.ChecklistItem, w, h int) CardFormModel {
 	ti := textinput.New()
 	ti.Placeholder = "Task title"
 	ti.CharLimit = 120
@@ -119,6 +120,7 @@ func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, 
 	}
 
 	return CardFormModel{
+		st:        st,
 		mode:      mode,
 		card:      card,
 		laneID:    card.LaneID,
@@ -127,9 +129,9 @@ func buildForm(mode formMode, card models.Card, allAssignees []models.Assignee, 
 		note:      ta,
 		startDate: si,
 		dueDate:   di,
-		assignees: NewAssigneePicker(card.ID, allAssignees, cardAssignees, w, h),
-		labels:    NewLabelPicker(card.ID, boardLabels, cardLabels, w, h),
-		checklist: NewChecklist(card.ID, checklistItems, w, h),
+		assignees: NewAssigneePicker(st, card.ID, allAssignees, cardAssignees, w, h),
+		labels:    NewLabelPicker(st, card.ID, boardLabels, cardLabels, w, h),
+		checklist: NewChecklist(st, card.ID, checklistItems, w, h),
 		width:     w,
 		height:    h,
 	}
@@ -310,9 +312,9 @@ func (f CardFormModel) View() string {
 
 	label := func(text string, section int) string {
 		if f.section == section {
-			return styles.SectionActiveStyle.Render(text)
+			return f.st.SectionActiveStyle.Render(text)
 		}
-		return styles.FormLabelStyle.Render(text)
+		return f.st.FormLabelStyle.Render(text)
 	}
 
 	colWidth := (f.boxWidth() - 6) / 2
@@ -338,20 +340,20 @@ func (f CardFormModel) View() string {
 
 	checklistView := f.checklist.viewBare(f.section == sectionChecklist)
 	if f.mode == formCreate {
-		checklistView = styles.FormLabelStyle.Render("Checklist") + "\n\n" +
-			styles.CardNoteStyle.Render("Save the card first to add checklist items")
+		checklistView = f.st.FormLabelStyle.Render("Checklist") + "\n\n" +
+			f.st.CardNoteStyle.Render("Save the card first to add checklist items")
 	}
 	right := lipgloss.JoinVertical(lipgloss.Left,
 		f.assignees.viewBare(f.section == sectionAssignees), "",
 		f.labels.viewBare(f.section == sectionLabels), "",
 		checklistView)
 
-	footer := styles.HelpDescStyle.Render("tab next section  shift+tab prev  ctrl+s save  esc cancel")
+	footer := f.st.HelpDescStyle.Render("tab next section  shift+tab prev  ctrl+s save  esc cancel")
 
 	var errBlock string
 	errLines := 0
 	if f.err != "" {
-		errBlock = styles.FormErrorStyle.Render("⚠ " + f.err)
+		errBlock = f.st.FormErrorStyle.Render("⚠ " + f.err)
 		errLines = lipgloss.Height(errBlock) + 1 // +1 for the blank line after it
 	}
 
@@ -388,14 +390,14 @@ func (f CardFormModel) View() string {
 	body := lipgloss.JoinHorizontal(lipgloss.Top, leftCol, "  ", rightCol)
 
 	var b strings.Builder
-	b.WriteString(styles.FormLabelStyle.Render(heading) + "\n\n")
+	b.WriteString(f.st.FormLabelStyle.Render(heading) + "\n\n")
 	b.WriteString(body + "\n\n")
 	if errBlock != "" {
 		b.WriteString(errBlock + "\n\n")
 	}
 	b.WriteString(footer)
 
-	box := styles.ModalBoxStyle.Width(f.boxWidth()).Height(f.boxHeight()).Render(b.String())
+	box := f.st.ModalBoxStyle.Width(f.boxWidth()).Height(f.boxHeight()).Render(b.String())
 
 	if f.width > 0 && f.height > 0 {
 		return lipgloss.Place(f.width, f.height, lipgloss.Center, lipgloss.Center, box)

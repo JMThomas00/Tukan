@@ -215,13 +215,13 @@ func ganttBarPlacement(windowStart time.Time, daysVisible int, start, end *time.
 // with a literal space/double-space that needed its own styling via
 // bgJoin), there's no unstyled glue text here for the background-bleed bug
 // to hide in.
-func ganttTimelineCells(card models.Card, bg string, windowStart time.Time, daysVisible int) string {
+func ganttTimelineCells(st *styles.Styles, card models.Card, bg string, windowStart time.Time, daysVisible int) string {
 	totalCols := daysVisible * ganttColsPerDay
 	bgColor := lipgloss.Color(bg)
 
 	start, end := effectiveDates(card)
 	if start == nil {
-		placeholder := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.ColorSubtext)).Background(bgColor).Render("—")
+		placeholder := lipgloss.NewStyle().Foreground(lipgloss.Color(st.ColorSubtext)).Background(bgColor).Render("—")
 		pad := totalCols - lipgloss.Width(placeholder)
 		if pad < 0 {
 			pad = 0
@@ -229,10 +229,10 @@ func ganttTimelineCells(card models.Card, bg string, windowStart time.Time, days
 		return placeholder + lipgloss.NewStyle().Background(bgColor).Render(strings.Repeat(" ", pad))
 	}
 
-	barColor := styles.ColorAccent
+	barColor := st.ColorAccent
 	startCol, width, inView := ganttBarPlacement(windowStart, daysVisible, start, end)
 	if card.DueDate != nil && card.DueDate.Before(startOfToday()) {
-		barColor = styles.ColorDanger
+		barColor = st.ColorDanger
 	}
 
 	if !inView {
@@ -255,14 +255,14 @@ func ganttTimelineCells(card models.Card, bg string, windowStart time.Time, days
 // styles.LaneColors by position. Shared by the lane divider and every
 // card's bar within it, so a card's bar color visually ties back to its
 // lane the same way the kanban view already does.
-func laneAccentColor(lane models.Lane, idx int) string {
+func laneAccentColor(st *styles.Styles, lane models.Lane, idx int) string {
 	if lane.Color != "" {
 		return lane.Color
 	}
-	if idx < len(styles.LaneColors) {
-		return styles.LaneColors[idx]
+	if idx < len(st.LaneColors) {
+		return st.LaneColors[idx]
 	}
-	return styles.ColorAccent
+	return st.ColorAccent
 }
 
 // renderGanttLaneDivider deliberately does NOT reuse styles.LaneHeaderStyle
@@ -271,8 +271,8 @@ func laneAccentColor(lane models.Lane, idx int) string {
 // wanted between a kanban lane's header and its first card). Reusing it
 // here made every divider silently render as 2 physical lines instead of
 // 1, throwing off ganttChrome's row accounting by one line per lane.
-func renderGanttLaneDivider(lane models.Lane, idx int) string {
-	color := laneAccentColor(lane, idx)
+func renderGanttLaneDivider(st *styles.Styles, lane models.Lane, idx int) string {
+	color := laneAccentColor(st, lane, idx)
 	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(color)).Render(lane.Name)
 }
 
@@ -282,9 +282,9 @@ func renderGanttLaneDivider(lane models.Lane, idx int) string {
 // kanban card's own focused-background swap — the background change IS the
 // focus indicator, no separate text-style change layered on top of it.
 func (b BoardModel) renderGanttCardRow(card models.Card, focused bool, windowStart time.Time, daysVisible int) string {
-	bg := styles.ColorSurface
+	bg := b.st.ColorSurface
 	if focused {
-		bg = styles.ColorHighlight
+		bg = b.st.ColorHighlight
 	}
 	bgColor := lipgloss.Color(bg)
 
@@ -292,15 +292,15 @@ func (b BoardModel) renderGanttCardRow(card models.Card, focused bool, windowSta
 	if r := []rune(title); len(r) > ganttLabelWidth-1 {
 		title = string(r[:ganttLabelWidth-1])
 	}
-	label := styles.CardTitleStyle.Background(bgColor).Width(ganttLabelWidth).Render(title)
+	label := b.st.CardTitleStyle.Background(bgColor).Width(ganttLabelWidth).Render(title)
 
 	ticket := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(styles.ColorSubtext)).
+		Foreground(lipgloss.Color(b.st.ColorSubtext)).
 		Background(bgColor).
 		Width(ganttTicketWidth).
 		Render(fmt.Sprintf("#%d", card.TicketNo))
 
-	timeline := ganttTimelineCells(card, bg, windowStart, daysVisible)
+	timeline := ganttTimelineCells(b.st, card, bg, windowStart, daysVisible)
 
 	return label + ticket + timeline
 }
@@ -314,7 +314,7 @@ func (b BoardModel) renderGanttCardRow(card models.Card, focused bool, windowSta
 // row is, so an embedded reset between spans just falls back to the
 // terminal's own default background, which is already what the rest of
 // this line is rendered against.
-func ganttDateAxis(windowStart time.Time, daysVisible int) string {
+func ganttDateAxis(st *styles.Styles, windowStart time.Time, daysVisible int) string {
 	totalCols := daysVisible * ganttColsPerDay
 	ruler := make([]byte, totalCols)
 	for i := range ruler {
@@ -341,7 +341,7 @@ func ganttDateAxis(windowStart time.Time, daysVisible int) string {
 	axisText := string(ruler)
 
 	if todayCol < 0 || todayCol >= totalCols {
-		return prefix + styles.HelpDescStyle.Render(axisText)
+		return prefix + st.HelpDescStyle.Render(axisText)
 	}
 
 	before := axisText[:todayCol]
@@ -352,9 +352,9 @@ func ganttDateAxis(windowStart time.Time, daysVisible int) string {
 	after := axisText[todayCol+1:]
 
 	return prefix +
-		styles.HelpDescStyle.Render(before) +
-		styles.CardOverdueStyle.Render(marker) +
-		styles.HelpDescStyle.Render(after)
+		st.HelpDescStyle.Render(before) +
+		st.CardOverdueStyle.Render(marker) +
+		st.HelpDescStyle.Render(after)
 }
 
 // renderGanttView renders the full scrollable body: the date axis, then
@@ -364,10 +364,10 @@ func (b BoardModel) renderGanttView() string {
 	rows := b.ganttRows()
 	visible := b.ganttVisibleRowCount()
 
-	lines := []string{ganttDateAxis(windowStart, daysVisible)}
+	lines := []string{ganttDateAxis(b.st, windowStart, daysVisible)}
 
 	if len(rows) == 0 {
-		lines = append(lines, styles.CardNoteStyle.Render("No cards yet — press n to add one"))
+		lines = append(lines, b.st.CardNoteStyle.Render("No cards yet — press n to add one"))
 	} else {
 		end := b.ganttScroll + visible
 		if end > len(rows) {
@@ -387,7 +387,7 @@ func (b BoardModel) renderGanttView() string {
 			row := rows[i]
 			switch row.kind {
 			case ganttRowLaneHeader:
-				lines = append(lines, renderGanttLaneDivider(row.lane, laneIdx[row.lane.ID]))
+				lines = append(lines, renderGanttLaneDivider(b.st, row.lane, laneIdx[row.lane.ID]))
 			case ganttRowCard:
 				lines = append(lines, b.renderGanttCardRow(row.card, i == b.ganttCursor, windowStart, daysVisible))
 			}

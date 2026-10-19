@@ -36,6 +36,7 @@ type cardEventsClosedMsg struct{}
 // unbounded and — unlike labels/checklists — isn't worth bulk-loading for
 // every card on every board load.
 type CardEventsModel struct {
+	st        *styles.Styles // the owning board's, shared
 	cardID    int64
 	cardTitle string
 	loading   bool
@@ -49,7 +50,7 @@ type CardEventsModel struct {
 
 // NewCardEvents creates a card-events modal. The caller is expected to also
 // fire cmdLoadCardEvents so it stops showing the loading placeholder.
-func NewCardEvents(cardID int64, cardTitle string, w, h int) CardEventsModel {
+func NewCardEvents(st *styles.Styles, cardID int64, cardTitle string, w, h int) CardEventsModel {
 	ta := textarea.New()
 	ta.Placeholder = "Write a comment..."
 	ta.CharLimit = 500
@@ -58,6 +59,7 @@ func NewCardEvents(cardID int64, cardTitle string, w, h int) CardEventsModel {
 	ta.ShowLineNumbers = false
 
 	return CardEventsModel{
+		st:        st,
 		cardID:    cardID,
 		cardTitle: cardTitle,
 		loading:   true,
@@ -140,37 +142,37 @@ func (c CardEventsModel) View() string {
 	if title == "" {
 		title = "History"
 	}
-	b.WriteString(styles.FormLabelStyle.Render("History — "+title) + "\n\n")
+	b.WriteString(c.st.FormLabelStyle.Render("History — "+title) + "\n\n")
 
 	switch {
 	case c.loading:
-		b.WriteString(styles.CardNoteStyle.Render("Loading…") + "\n")
+		b.WriteString(c.st.CardNoteStyle.Render("Loading…") + "\n")
 	case len(c.events) == 0:
-		b.WriteString(styles.CardNoteStyle.Render("No activity yet") + "\n")
+		b.WriteString(c.st.CardNoteStyle.Render("No activity yet") + "\n")
 	default:
 		for _, e := range c.events {
 			ts := e.CreatedAt.Format("Jan 2 15:04")
 			if e.Kind == models.EventActivity {
-				b.WriteString(styles.CardNoteStyle.Render(fmt.Sprintf("• %s — %s", e.Body, ts)) + "\n")
+				b.WriteString(c.st.CardNoteStyle.Render(fmt.Sprintf("• %s — %s", e.Body, ts)) + "\n")
 				continue
 			}
 			actor := "you"
 			if e.Actor != nil && *e.Actor != "" {
 				actor = *e.Actor
 			}
-			header := styles.FormLabelStyle.Render(actor) + "  " + styles.HelpDescStyle.Render(ts)
+			header := c.st.FormLabelStyle.Render(actor) + "  " + c.st.HelpDescStyle.Render(ts)
 			b.WriteString(header + "\n" + e.Body + "\n")
 		}
 	}
 
 	if c.mode == cardEventsComposing {
 		b.WriteString("\n" + c.input.View() + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("ctrl+s post  esc cancel"))
+		b.WriteString(c.st.HelpDescStyle.Render("ctrl+s post  esc cancel"))
 	} else {
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ scroll  a comment  esc close"))
+		b.WriteString("\n" + c.st.HelpDescStyle.Render("↑/↓ scroll  a comment  esc close"))
 	}
 
-	box := styles.ModalBoxStyle.Width(60).Render(b.String())
+	box := c.st.ModalBoxStyle.Width(60).Render(b.String())
 	if c.width > 0 && c.height > 0 {
 		return lipgloss.Place(c.width, c.height, lipgloss.Center, lipgloss.Center, box)
 	}

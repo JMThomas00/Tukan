@@ -41,6 +41,7 @@ type assigneePickerDoneMsg struct {
 // registry is global — see board.go's handling, shaped like
 // labelPickerCreate's.
 type AssigneePickerModel struct {
+	st        *styles.Styles // the owning board's, shared
 	cardID    int64
 	all       []models.Assignee
 	selected  map[int64]bool
@@ -54,7 +55,7 @@ type AssigneePickerModel struct {
 // NewAssigneePicker creates a picker for a card, pre-selecting whoever's
 // already assigned. all is the full global registry, not scoped to a board
 // — the same person is the same identity (and color) everywhere.
-func NewAssigneePicker(cardID int64, all []models.Assignee, current []models.Assignee, w, h int) AssigneePickerModel {
+func NewAssigneePicker(st *styles.Styles, cardID int64, all []models.Assignee, current []models.Assignee, w, h int) AssigneePickerModel {
 	selected := make(map[int64]bool, len(current))
 	for _, a := range current {
 		selected[a.ID] = true
@@ -65,6 +66,7 @@ func NewAssigneePicker(cardID int64, all []models.Assignee, current []models.Ass
 	ni.CharLimit = 60
 
 	return AssigneePickerModel{
+		st:        st,
 		cardID:    cardID,
 		all:       all,
 		selected:  selected,
@@ -161,37 +163,37 @@ func (p AssigneePickerModel) selectedIDs() []int64 {
 // same convention LabelPickerModel/ChecklistModel use.
 func (p AssigneePickerModel) viewBare(focused bool) string {
 	var b strings.Builder
-	headerStyle := styles.FormLabelStyle
+	headerStyle := p.st.FormLabelStyle
 	if focused {
-		headerStyle = styles.SectionActiveStyle
+		headerStyle = p.st.SectionActiveStyle
 	}
 	b.WriteString(headerStyle.Render("Assignees") + "\n\n")
 
 	switch p.mode {
 	case assigneePickerCreatingAssignee:
-		b.WriteString(styles.FormLabelStyle.Render("New assignee name") + "\n")
+		b.WriteString(p.st.FormLabelStyle.Render("New assignee name") + "\n")
 		b.WriteString(p.nameInput.View() + "\n\n")
-		b.WriteString(styles.HelpDescStyle.Render("enter save  esc cancel"))
+		b.WriteString(p.st.HelpDescStyle.Render("enter save  esc cancel"))
 
 	default:
 		if len(p.all) == 0 {
-			b.WriteString(styles.CardNoteStyle.Render("No assignees yet — press n to add one") + "\n")
+			b.WriteString(p.st.CardNoteStyle.Render("No assignees yet — press n to add one") + "\n")
 		}
 		for i, a := range p.all {
 			mark := "[ ]"
 			if p.selected[a.ID] {
 				mark = "[x]"
 			}
-			chip := lipgloss.NewStyle().Foreground(lipgloss.Color(styles.AssigneeColor(a.ID))).Render("●")
+			chip := lipgloss.NewStyle().Foreground(lipgloss.Color(p.st.AssigneeColor(a.ID))).Render("●")
 			line := fmt.Sprintf("%s %s %s", mark, chip, a.Name)
 			if i == p.cursor {
-				line = styles.HelpKeyStyle.Render("› " + line)
+				line = p.st.HelpKeyStyle.Render("› " + line)
 			} else {
-				line = styles.FormLabelStyle.Render("  " + line)
+				line = p.st.FormLabelStyle.Render("  " + line)
 			}
 			b.WriteString(line + "\n")
 		}
-		b.WriteString("\n" + styles.HelpDescStyle.Render("↑/↓ select  space toggle  n new  esc close"))
+		b.WriteString("\n" + p.st.HelpDescStyle.Render("↑/↓ select  space toggle  n new  esc close"))
 	}
 
 	return b.String()

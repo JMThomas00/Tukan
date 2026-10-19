@@ -24,12 +24,11 @@ type App struct {
 }
 
 // New creates the root application model. themeName is the slug of the
-// currently active theme (already applied to internal/styles by the
-// caller before this runs) — BoardModel just needs to know its name for
-// the theme switcher's cursor-seeding.
+// theme to start in; the board builds its styles from it, and the splash
+// shares them.
 func New(db *database.DB, cfg config.Config, themeName string) (App, error) {
-	splash := NewSplash(cfg)
 	board, _ := NewBoard(db, 0, 0, themeName) // dimensions filled in on first WindowSizeMsg
+	splash := NewSplash(board.st, cfg)
 	return App{
 		screen: screenSplash,
 		splash: splash,

@@ -12,7 +12,7 @@ import (
 // "refuse to delete the last board" guard — a board needs at least one lane
 // to hold cards.
 func TestLaneManagerRefusesToDeleteLastLane(t *testing.T) {
-	m := NewLaneManager(1, []models.Lane{{ID: 1, Name: "Only Lane"}}, nil, 80, 24)
+	m := NewLaneManager(testStyles, 1, []models.Lane{{ID: 1, Name: "Only Lane"}}, nil, 80, 24)
 
 	updated, _ := m.updateBrowsing(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}}, DefaultKeyMap)
 	if updated.mode != laneManagerBrowsing {
@@ -25,7 +25,7 @@ func TestLaneManagerRefusesToDeleteLastLane(t *testing.T) {
 // neighbor on that side to swap with.
 func TestLaneManagerReorderAtEdgesIsANoOp(t *testing.T) {
 	lanes := []models.Lane{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}}
-	m := NewLaneManager(1, lanes, nil, 80, 24)
+	m := NewLaneManager(testStyles, 1, lanes, nil, 80, 24)
 	m.cursor = 0
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
@@ -44,7 +44,7 @@ func TestLaneManagerReorderAtEdgesIsANoOp(t *testing.T) {
 // reorder doneMsg naming both lanes involved in the swap.
 func TestLaneManagerReorderEmitsSwap(t *testing.T) {
 	lanes := []models.Lane{{ID: 1, Name: "A"}, {ID: 2, Name: "B"}}
-	m := NewLaneManager(1, lanes, nil, 80, 24)
+	m := NewLaneManager(testStyles, 1, lanes, nil, 80, 24)
 	m.cursor = 0
 
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
@@ -71,7 +71,7 @@ func TestLaneManagerReorderEmitsSwap(t *testing.T) {
 // (tea.KeyMsg only) and drops it.
 func TestLaneManagerDoneMsgHandledBeforeActiveGuard(t *testing.T) {
 	db, b := newTestBoard(t)
-	b.laneManager = NewLaneManager(b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
+	b.laneManager = NewLaneManager(testStyles, b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
 	b.laneManagerActive = true
 
 	updated, cmd := b.Update(laneManagerDoneMsg{action: laneManagerCreated, name: "New Lane"})
@@ -110,7 +110,7 @@ func TestLaneManagerDoneMsgHandledBeforeActiveGuard(t *testing.T) {
 // the one action that actually closes the modal.
 func TestLaneManagerCancelClosesTheModal(t *testing.T) {
 	_, b := newTestBoard(t)
-	b.laneManager = NewLaneManager(b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
+	b.laneManager = NewLaneManager(testStyles, b.currentBoardID, b.lanes, cardCountsByLane(b.cards), b.width, b.height)
 	b.laneManagerActive = true
 
 	updated, cmd := b.Update(laneManagerDoneMsg{cancelled: true})
